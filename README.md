@@ -1,4 +1,4 @@
-# Bindery
+# ![Bindery](logo.png)
 
 A self-hosted, Dockerized converter that automatically processes e-books and comics dropped into watched folders — no manual steps required.
 
