@@ -27,6 +27,21 @@ Bindery fits anywhere in a self-hosted media pipeline. Point the output folders 
 
 ## Quick Start
 
+**Option A — Docker Hub (recommended)**
+```bash
+# 1. Copy docker-compose.yml from the repo and edit your paths
+# 2. Find your user/group IDs
+id
+# → uid=1000(you) gid=1000(you)
+
+# 3. Set PUID/PGID in docker-compose.yml, then start
+docker compose up -d
+
+# 4. Open the WebUI
+http://<server-ip>:5000
+```
+
+**Option B — Build from source**
 ```bash
 # 1. Clone
 git clone https://github.com/jarynclouatre/bindery
@@ -70,7 +85,7 @@ Adjust the volume paths if your media lives somewhere other than the repo direct
 ```yaml
 services:
   bindery:
-    build: .
+    image: dinkeyes/bindery:latest
     container_name: bindery
     ports:
       - "5000:5000"
@@ -237,6 +252,12 @@ sudo systemctl enable --now rclone-bindery
 
 ## Updating
 
+**Docker Hub users:**
+```bash
+docker compose pull && docker compose up -d
+```
+
+**Source users:**
 ```bash
 cd /path/to/bindery && git pull && docker compose up -d --build
 ```
