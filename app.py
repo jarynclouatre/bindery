@@ -5,6 +5,7 @@ import json
 import shutil
 import threading
 import sys
+import uuid
 from collections import deque
 from flask import Flask, request, render_template_string
 
@@ -536,7 +537,7 @@ def handle_output_renaming(produced_file, target_dir, original_input, in_base):
 def process_file(filepath, c_type):
     short    = os.path.basename(filepath)[:24]
     in_base  = BOOKS_IN if c_type == 'book' else COMICS_IN
-    temp_out = os.path.join('/tmp', os.path.basename(filepath) + '_out')
+    temp_out = os.path.join('/tmp', os.path.basename(filepath) + '_' + uuid.uuid4().hex + '_out')
     try:
         if not wait_for_file_ready(filepath):
             log(f">>> SKIP (not ready): {short}")
@@ -662,7 +663,8 @@ def watch_loop():
             log(f">>> SCAN ERROR: {e}")
         time.sleep(10)
 
+log(">>> Bindery started. Watching /Books_in and /Comics_in every 10s.")
+threading.Thread(target=watch_loop, daemon=True).start()
+
 if __name__ == '__main__':
-    log(">>> Bindery started. Watching /Books_in and /Comics_in every 10s.")
-    threading.Thread(target=watch_loop, daemon=True).start()
     app.run(host='0.0.0.0', port=5000, threaded=True)
