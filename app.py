@@ -224,6 +224,7 @@ def wait_for_file_ready(filepath):
     last_size = -1
     for _ in range(30):
         try:
+            if not os.path.exists(filepath): return False
             current_size = os.path.getsize(filepath)
             if current_size > 0 and current_size == last_size:
                 return True
@@ -244,7 +245,7 @@ def handle_output_renaming(produced_file, target_dir, original_input):
     final_path = os.path.join(target_dir, filename)
     os.makedirs(target_dir, exist_ok=True)
     shutil.move(produced_file, final_path)
-    os.remove(original_input)
+    if os.path.exists(original_input): os.remove(original_input)
     return True
 
 def process_file(filepath, c_type):
@@ -259,33 +260,37 @@ def process_file(filepath, c_type):
         target_dir = os.path.join(out_base, rel_dir)
         temp_out = os.path.join('/tmp', os.path.basename(filepath) + '_out')
         os.makedirs(temp_out, exist_ok=True)
+        
         if c_type == 'book':
+            print(f"Running Kepubify on {filepath}", flush=True)
             cmd = ['kepubify', '--calibre', '--inplace', '--output', temp_out, filepath]
             result = subprocess.run(cmd, capture_output=True, text=True)
         else:
-            cmd = ['kcc-c2e', '--profile', config['kcc_profile'], '--format', config['kcc_format'], 
-                   '--splitter', config['kcc_splitter'], '--cropping', config['kcc_cropping'], '--output', temp_out]
+            print(f"Running KCC on {filepath}", flush=True)
+            cmd = ['kcc-c2e', '-p', config['kcc_profile'], '-f', config['kcc_format'], 
+                   '--splitter', config['kcc_splitter'], '--cropping', config['kcc_cropping'], '-o', temp_out]
             if config['kcc_manga_style']: cmd.append('-m')
             if config['kcc_hq']: cmd.append('-q')
-            if config['kcc_stretch']: cmd.append('--stretch')
+            if config['kcc_stretch']: cmd.append('-s')
             if config['kcc_forcecolor']: cmd.append('--forcecolor')
-            if config['kcc_blackborders']: cmd.append('--blackborders')
-            if config['kcc_colorautocontrast']: cmd.append('--colorautocontrast')
-            if config['kcc_upscale']: cmd.append('--upscale')
-            if config['kcc_metadatatitle']: cmd.append('--metadatatitle')
+            if config['kcc_blackborders']: cmd.append('-b')
+            if config['kcc_colorautocontrast']: cmd.append('-c')
+            if config['kcc_upscale']: cmd.append('-u')
+            if config['kcc_metadatatitle']: cmd.append('-t')
             if config['kcc_gamma'] and config['kcc_gamma'].lower() != 'auto':
-                cmd.extend(['--gamma', config['kcc_gamma']])
+                cmd.extend(['-g', config['kcc_gamma']])
             cmd.append(filepath)
             result = subprocess.run(cmd, capture_output=True, text=True)
+            
         if result.returncode == 0:
             produced = get_newest_file(temp_out)
             if handle_output_renaming(produced, target_dir, filepath):
-                print(f"Successfully processed {filepath}")
+                print(f"Successfully processed {filepath}", flush=True)
         else:
-            print(f"Failed to process {filepath}\\nError: {result.stderr}")
-            os.rename(filepath, filepath + '.failed')
+            print(f"Failed to process {filepath}\\nError: {result.stderr}", flush=True)
+            if os.path.exists(filepath): os.rename(filepath, filepath + '.failed')
         if os.path.exists(temp_out): shutil.rmtree(temp_out)
-    except Exception as e: print(f"Exception processing {filepath}: {e}")
+    except Exception as e: print(f"Exception processing {filepath}: {e}", flush=True)
     finally: PROCESSING_LOCKS.remove(filepath)
 
 def scan_directories():
