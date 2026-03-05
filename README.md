@@ -83,6 +83,7 @@ services:
       - /path/to/books_out:/Books_out
       - /path/to/comics_in:/Comics_in
       - /path/to/comics_out:/Comics_out
+      - /path/to/comics_raw:/Comics_raw
     restart: unless-stopped
     logging:
       driver: "json-file"
