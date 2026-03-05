@@ -17,28 +17,46 @@ COMICS_OUT = '/Comics_out'
 BOOKS_IN   = '/Books_in'
 BOOKS_OUT  = '/Books_out'
 
+# Defaults matched to your old kcc-watcher docker values
 DEFAULT_CONFIG = {
+    # MAIN
     'kcc_profile':           'KoLC',
-    'kcc_format':            'EPUB',
     'kcc_manga_style':       False,
     'kcc_hq':                False,
-    'kcc_stretch':           True,
-    'kcc_forcecolor':        True,
+    'kcc_two_panel':         False,
+    'kcc_webtoon':           False,
+    # PROCESSING
     'kcc_blackborders':      True,
+    'kcc_whiteborders':      False,
+    'kcc_forcecolor':        True,
     'kcc_colorautocontrast': True,
+    'kcc_colorcurve':        False,
+    'kcc_stretch':           True,
     'kcc_upscale':           False,
-    'kcc_metadatatitle':     True,
+    'kcc_nosplitrotate':     False,
+    'kcc_rotate':            False,
     'kcc_cropping':          '2',
+    'kcc_croppingpower':     '1.0',
+    'kcc_croppingminimum':   '1',
     'kcc_splitter':          '2',
-    'kcc_gamma':             'auto',
+    'kcc_gamma':             '1.0',
+    # OUTPUT
+    'kcc_format':            'EPUB',
+    'kcc_nokepub':           False,
+    'kcc_metadatatitle':     True,
+    'kcc_author':            '',
+    'kcc_batchsplit':        '0',
+    # CUSTOM PROFILE
+    'kcc_customwidth':       '',
+    'kcc_customheight':      '',
 }
 
 PROCESSING_LOCKS = set()
 lock_mutex       = threading.Lock()
-LOG_BUFFER       = deque(maxlen=200)
+LOG_BUFFER       = deque(maxlen=300)
 log_lock         = threading.Lock()
 
-# ── logging ──────────────────────────────────────────────────────────────────
+# ── logging ───────────────────────────────────────────────────────────────────
 
 def log(msg):
     line = msg.rstrip()
@@ -47,7 +65,7 @@ def log(msg):
     sys.stdout.write(line + '\n')
     sys.stdout.flush()
 
-# ── config ───────────────────────────────────────────────────────────────────
+# ── config ────────────────────────────────────────────────────────────────────
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -74,7 +92,7 @@ HTML_TEMPLATE = """
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>E-Reader Converter</title>
+    <title>Bindery</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -82,64 +100,82 @@ HTML_TEMPLATE = """
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: #141414; color: #e0e0e0; padding: 24px 16px;
         }
-        .wrap { max-width: 860px; margin: auto; }
-        h1 { font-size: 1.4rem; color: #5aabff; margin-bottom: 20px; }
-        h2 { font-size: 1rem; color: #5aabff; border-bottom: 1px solid #333;
-             padding-bottom: 8px; margin: 24px 0 16px; }
-        .card { background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 8px;
-                padding: 24px; margin-bottom: 20px; }
+        .wrap { max-width: 960px; margin: auto; }
+        h1 { font-size: 1.5rem; color: #5aabff; margin-bottom: 6px; }
+        .subtitle { font-size: .85rem; color: #666; margin-bottom: 24px; }
+        h2 { font-size: .95rem; color: #5aabff; border-bottom: 1px solid #2a2a2a;
+             padding-bottom: 8px; margin: 0 0 16px; text-transform: uppercase;
+             letter-spacing: .06em; }
+        .card { background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 8px;
+                padding: 22px; margin-bottom: 20px; }
         .alert { background: #1a3a1a; border: 1px solid #2a6a2a; color: #6fcf6f;
                  border-radius: 6px; padding: 10px 14px; margin-bottom: 18px; font-size:.9rem; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+        /* grid layouts */
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 700px) { .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+        /* fields */
         .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-        label { font-size: .83rem; font-weight: 600; color: #aaa; text-transform: uppercase;
-                letter-spacing: .04em; }
-        select, input[type="text"] {
-            padding: 8px 10px; background: #2a2a2a; border: 1px solid #444;
-            border-radius: 5px; color: #fff; font-size: .9rem; width: 100%;
+        .field:last-child { margin-bottom: 0; }
+        label.lbl { font-size: .78rem; font-weight: 600; color: #888;
+                    text-transform: uppercase; letter-spacing: .04em; }
+        select, input[type="text"], input[type="number"] {
+            padding: 8px 10px; background: #252525; border: 1px solid #3a3a3a;
+            border-radius: 5px; color: #fff; font-size: .88rem; width: 100%;
         }
-        select:focus, input[type="text"]:focus { outline: none; border-color: #5aabff; }
-        .checks { display: flex; flex-direction: column; gap: 10px; }
-        .check { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-        .check input { width: 16px; height: 16px; accent-color: #5aabff; cursor: pointer; }
-        .check span { font-size: .9rem; color: #ccc; }
-        .check .hint { font-size: .78rem; color: #666; margin-top: 1px; }
-        .btn {
-            display: block; width: 100%; padding: 12px; margin-top: 22px;
-            background: #5aabff; color: #111; border: none; border-radius: 6px;
-            font-size: 1rem; font-weight: 700; cursor: pointer; transition: background .15s;
-        }
+        select:focus, input:focus { outline: none; border-color: #5aabff; }
+        /* checkboxes */
+        .checks { display: flex; flex-direction: column; gap: 8px; }
+        .check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+                 padding: 6px 8px; border-radius: 5px; transition: background .1s; }
+        .check:hover { background: #252525; }
+        .check input[type="checkbox"] { width: 15px; height: 15px; margin-top: 2px;
+                                        accent-color: #5aabff; cursor: pointer; flex-shrink: 0; }
+        .check-text { display: flex; flex-direction: column; }
+        .check-label { font-size: .88rem; color: #ddd; }
+        .check-hint  { font-size: .75rem; color: #555; margin-top: 1px; }
+        /* section divider */
+        .section-title { font-size: .72rem; color: #555; text-transform: uppercase;
+                         letter-spacing: .08em; margin: 16px 0 10px;
+                         border-top: 1px solid #2a2a2a; padding-top: 14px; }
+        /* button */
+        .btn { display: block; width: 100%; padding: 13px; margin-top: 22px;
+               background: #5aabff; color: #111; border: none; border-radius: 6px;
+               font-size: 1rem; font-weight: 700; cursor: pointer; transition: background .15s; }
         .btn:hover { background: #3d8fe0; }
-        optgroup { background: #1e1e1e; color: #5aabff; }
-        option   { background: #2a2a2a; color: #fff; }
-        /* log panel */
-        .logbox {
-            background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 6px;
-            padding: 14px; font-family: monospace; font-size: .78rem; color: #7ec77e;
-            height: 260px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
-        }
+        /* log */
+        .log-toolbar { display: flex; justify-content: space-between; align-items: center;
+                       margin-bottom: 12px; }
+        .log-refresh { font-size: .78rem; color: #555; }
+        .logbox { background: #0d0d0d; border: 1px solid #222; border-radius: 6px;
+                  padding: 14px; font-family: monospace; font-size: .76rem;
+                  height: 280px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+        .log-ok   { color: #6fcf6f; }
         .log-err  { color: #e07070; }
-        .log-info { color: #7ec77e; }
         .log-warn { color: #e0c060; }
+        .log-cmd  { color: #888; }
+        optgroup { background: #1e1e1e; color: #5aabff; }
+        option   { background: #252525; color: #fff; }
     </style>
 </head>
 <body>
 <div class="wrap">
-    <h1>⚡ E-Reader Converter</h1>
+    <h1>📚 Bindery</h1>
+    <div class="subtitle">Automated e-book &amp; comic converter — watching every 10 seconds</div>
 
     {% if saved %}<div class="alert">✔ Settings saved.</div>{% endif %}
 
+    <form method="POST">
     <div class="card">
         <h2>KCC — Kindle Comic Converter</h2>
-        <form method="POST">
-        <div class="grid">
-            <!-- left column -->
+
+        <div class="grid-3">
+            <!-- Column 1: Main selects -->
             <div>
                 <div class="field">
-                    <label>Device Profile</label>
+                    <label class="lbl">Device Profile</label>
                     <select name="kcc_profile">
-                        <optgroup label="─── Kindle ───">
+                        <optgroup label="── Kindle ──">
                             {% for val, lbl in [
                                 ('K1','Kindle 1'),('K2','Kindle 2'),
                                 ('K34','Kindle Keyboard / Touch'),
@@ -155,7 +191,7 @@ HTML_TEMPLATE = """
                             <option value="{{ val }}" {% if config.kcc_profile == val %}selected{% endif %}>{{ lbl }}</option>
                             {% endfor %}
                         </optgroup>
-                        <optgroup label="─── Kobo ───">
+                        <optgroup label="── Kobo ──">
                             {% for val, lbl in [
                                 ('KoM','Kobo Mini'),('KoT','Kobo Touch'),
                                 ('KoG','Kobo Glo'),('KoGHD','Kobo Glo HD'),
@@ -170,24 +206,31 @@ HTML_TEMPLATE = """
                             <option value="{{ val }}" {% if config.kcc_profile == val %}selected{% endif %}>{{ lbl }}</option>
                             {% endfor %}
                         </optgroup>
-                        <optgroup label="─── Other ───">
-                            <option value="RM"    {% if config.kcc_profile == 'RM'    %}selected{% endif %}>reMarkable 1 / 2</option>
+                        <optgroup label="── Other ──">
+                            <option value="Rmk1"  {% if config.kcc_profile == 'Rmk1'  %}selected{% endif %}>reMarkable 1</option>
+                            <option value="Rmk2"  {% if config.kcc_profile == 'Rmk2'  %}selected{% endif %}>reMarkable 2</option>
+                            <option value="RmkPP" {% if config.kcc_profile == 'RmkPP' %}selected{% endif %}>reMarkable Paper Pro</option>
                             <option value="OTHER" {% if config.kcc_profile == 'OTHER' %}selected{% endif %}>Generic / Custom</option>
                         </optgroup>
                     </select>
                 </div>
 
                 <div class="field">
-                    <label>Output Format</label>
+                    <label class="lbl">Output Format</label>
                     <select name="kcc_format">
-                        {% for val, lbl in [('EPUB','EPUB'),('MOBI','MOBI'),('CBZ','CBZ'),('KFX','KFX')] %}
+                        {% for val, lbl in [
+                            ('Auto','Auto (recommended)'),
+                            ('EPUB','EPUB'),('MOBI','MOBI'),
+                            ('CBZ','CBZ'),('KFX','KFX'),
+                            ('MOBI+EPUB','MOBI + EPUB'),('PDF','PDF'),
+                        ] %}
                         <option value="{{ val }}" {% if config.kcc_format == val %}selected{% endif %}>{{ lbl }}</option>
                         {% endfor %}
                     </select>
                 </div>
 
                 <div class="field">
-                    <label>Cropping</label>
+                    <label class="lbl">Cropping</label>
                     <select name="kcc_cropping">
                         <option value="0" {% if config.kcc_cropping == '0' %}selected{% endif %}>Disabled</option>
                         <option value="1" {% if config.kcc_cropping == '1' %}selected{% endif %}>Margins only</option>
@@ -196,73 +239,225 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div class="field">
-                    <label>Splitter (Landscape pages)</label>
+                    <label class="lbl">Cropping Power</label>
+                    <input type="number" name="kcc_croppingpower" step="0.1" min="0.1" max="2.0"
+                           value="{{ config.kcc_croppingpower }}">
+                </div>
+
+                <div class="field">
+                    <label class="lbl">Cropping Minimum (%)</label>
+                    <input type="number" name="kcc_croppingminimum" step="1" min="0" max="50"
+                           value="{{ config.kcc_croppingminimum }}">
+                </div>
+
+                <div class="field">
+                    <label class="lbl">Splitter (Landscape pages)</label>
                     <select name="kcc_splitter">
                         <option value="0" {% if config.kcc_splitter == '0' %}selected{% endif %}>Disabled</option>
-                        <option value="1" {% if config.kcc_splitter == '1' %}selected{% endif %}>Split left then right</option>
-                        <option value="2" {% if config.kcc_splitter == '2' %}selected{% endif %}>Split right then left (manga)</option>
-                        <option value="3" {% if config.kcc_splitter == '3' %}selected{% endif %}>Split left only</option>
-                        <option value="4" {% if config.kcc_splitter == '4' %}selected{% endif %}>Split right only</option>
+                        <option value="1" {% if config.kcc_splitter == '1' %}selected{% endif %}>Left then right</option>
+                        <option value="2" {% if config.kcc_splitter == '2' %}selected{% endif %}>Right then left (manga)</option>
+                        <option value="3" {% if config.kcc_splitter == '3' %}selected{% endif %}>Left only</option>
+                        <option value="4" {% if config.kcc_splitter == '4' %}selected{% endif %}>Right only</option>
                     </select>
                 </div>
 
                 <div class="field">
-                    <label>Gamma</label>
+                    <label class="lbl">Gamma</label>
                     <select name="kcc_gamma">
-                        <option value="auto" {% if config.kcc_gamma == 'auto' %}selected{% endif %}>Auto (recommended)</option>
-                        {% for v in ['0.5','0.8','1.0','1.2','1.5','1.8','2.0','2.2'] %}
-                        <option value="{{ v }}" {% if config.kcc_gamma == v %}selected{% endif %}>{{ v }}</option>
-                        {% endfor %}
+                        <option value="1.0" {% if config.kcc_gamma == '1.0' %}selected{% endif %}>1.0 — Disabled (default)</option>
+                        <option value="0.5" {% if config.kcc_gamma == '0.5' %}selected{% endif %}>0.5</option>
+                        <option value="0.8" {% if config.kcc_gamma == '0.8' %}selected{% endif %}>0.8</option>
+                        <option value="1.2" {% if config.kcc_gamma == '1.2' %}selected{% endif %}>1.2</option>
+                        <option value="1.5" {% if config.kcc_gamma == '1.5' %}selected{% endif %}>1.5</option>
+                        <option value="1.8" {% if config.kcc_gamma == '1.8' %}selected{% endif %}>1.8 — Darker (old default)</option>
+                        <option value="2.0" {% if config.kcc_gamma == '2.0' %}selected{% endif %}>2.0</option>
+                        <option value="2.2" {% if config.kcc_gamma == '2.2' %}selected{% endif %}>2.2</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label class="lbl">Batch Split</label>
+                    <select name="kcc_batchsplit">
+                        <option value="0" {% if config.kcc_batchsplit == '0' %}selected{% endif %}>Disabled</option>
+                        <option value="1" {% if config.kcc_batchsplit == '1' %}selected{% endif %}>Split into volumes</option>
+                        <option value="2" {% if config.kcc_batchsplit == '2' %}selected{% endif %}>Split into chapters</option>
                     </select>
                 </div>
             </div>
 
-            <!-- right column: toggles -->
+            <!-- Column 2: Toggles -->
             <div>
-                <label style="display:block; margin-bottom:12px;">Options</label>
+                <div class="section-title">Page Layout</div>
                 <div class="checks">
-                    {% set toggles = [
-                        ('kcc_manga_style', 'Manga Style',         'Right-to-left page order'),
-                        ('kcc_hq',          'High Quality',         'Slower but better output'),
-                        ('kcc_stretch',     'Stretch',              'Fill screen, ignore aspect ratio'),
-                        ('kcc_forcecolor',  'Force Color',          'Keep color even on grayscale devices'),
-                        ('kcc_blackborders','Black Borders',        'Add black bars instead of white'),
-                        ('kcc_colorautocontrast', 'Auto-Contrast',  'Boost color image contrast'),
-                        ('kcc_upscale',     'Upscale',              'Upscale images smaller than screen'),
-                        ('kcc_metadatatitle','Use Filename as Title','Sets EPUB metadata title from filename'),
-                    ] %}
-                    {% for key, lbl, hint in toggles %}
                     <label class="check">
-                        <input type="checkbox" name="{{ key }}" {% if config[key] %}checked{% endif %}>
-                        <span>{{ lbl }}<br><span class="hint">{{ hint }}</span></span>
+                        <input type="checkbox" name="kcc_manga_style" {% if config.kcc_manga_style %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Manga Style</span>
+                            <span class="check-hint">Right-to-left page order</span>
+                        </span>
                     </label>
-                    {% endfor %}
+                    <label class="check">
+                        <input type="checkbox" name="kcc_two_panel" {% if config.kcc_two_panel %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Two Panel</span>
+                            <span class="check-hint">Treat landscape pages as two-panel spreads</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_webtoon" {% if config.kcc_webtoon %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Webtoon</span>
+                            <span class="check-hint">Optimise for vertical-strip webtoon format</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_nosplitrotate" {% if config.kcc_nosplitrotate %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">No Split / Rotate</span>
+                            <span class="check-hint">Disable automatic split and rotate of landscape pages</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_rotate" {% if config.kcc_rotate %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Rotate</span>
+                            <span class="check-hint">Rotate landscape pages instead of splitting</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_stretch" {% if config.kcc_stretch %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Stretch</span>
+                            <span class="check-hint">Fill screen, ignoring original aspect ratio</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_upscale" {% if config.kcc_upscale %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Upscale</span>
+                            <span class="check-hint">Upscale images smaller than the target resolution</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="section-title">Color &amp; Image Processing</div>
+                <div class="checks">
+                    <label class="check">
+                        <input type="checkbox" name="kcc_forcecolor" {% if config.kcc_forcecolor %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Force Color</span>
+                            <span class="check-hint">Preserve color data even on grayscale device profiles</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_colorautocontrast" {% if config.kcc_colorautocontrast %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Auto-Contrast</span>
+                            <span class="check-hint">Automatically boost color image contrast</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_colorcurve" {% if config.kcc_colorcurve %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Color Curve</span>
+                            <span class="check-hint">Apply S-curve color correction</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_hq" {% if config.kcc_hq %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">High Quality</span>
+                            <span class="check-hint">Slower conversion, marginally better output</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="section-title">Borders</div>
+                <div class="checks">
+                    <label class="check">
+                        <input type="checkbox" name="kcc_blackborders" {% if config.kcc_blackborders %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Black Borders</span>
+                            <span class="check-hint">Fill unused screen area with black</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_whiteborders" {% if config.kcc_whiteborders %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">White Borders</span>
+                            <span class="check-hint">Fill unused screen area with white (overrides black)</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Column 3: Output & Custom Profile -->
+            <div>
+                <div class="section-title">Output Metadata</div>
+                <div class="checks" style="margin-bottom:14px;">
+                    <label class="check">
+                        <input type="checkbox" name="kcc_metadatatitle" {% if config.kcc_metadatatitle %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">Use Filename as Title</span>
+                            <span class="check-hint">Sets EPUB metadata title from the source filename</span>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_nokepub" {% if config.kcc_nokepub %}checked{% endif %}>
+                        <span class="check-text">
+                            <span class="check-label">No KEPUB extension</span>
+                            <span class="check-hint">Output .epub instead of .kepub.epub for Kobo profiles</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="field">
+                    <label class="lbl">Author</label>
+                    <input type="text" name="kcc_author" placeholder="Leave blank for default (KCC)"
+                           value="{{ config.kcc_author }}">
+                </div>
+
+                <div class="section-title">Custom Profile Resolution</div>
+                <p style="font-size:.75rem; color:#555; margin-bottom:10px;">
+                    Only used when profile is set to Generic / Custom.
+                </p>
+                <div class="field">
+                    <label class="lbl">Custom Width (px)</label>
+                    <input type="number" name="kcc_customwidth" min="0" placeholder="e.g. 1264"
+                           value="{{ config.kcc_customwidth }}">
+                </div>
+                <div class="field">
+                    <label class="lbl">Custom Height (px)</label>
+                    <input type="number" name="kcc_customheight" min="0" placeholder="e.g. 1680"
+                           value="{{ config.kcc_customheight }}">
                 </div>
             </div>
         </div>
-        <button type="submit" class="btn">Save Configuration</button>
-        </form>
-    </div>
 
-    <!-- Live log panel -->
+        <button type="submit" class="btn">Save Configuration</button>
+    </div>
+    </form>
+
+    <!-- Log panel — manual refresh only -->
     <div class="card">
-        <h2>Recent Activity</h2>
+        <div class="log-toolbar">
+            <h2 style="border:none; margin:0; padding:0;">Recent Activity</h2>
+            <span class="log-refresh">
+                <a href="/" style="color:#5aabff; text-decoration:none; font-size:.8rem;">↻ Refresh</a>
+            </span>
+        </div>
         <div class="logbox" id="logbox">
-        {% for line in logs %}
-            {% if 'FAILED' in line or 'ERROR' in line %}<span class="log-err">{{ line }}</span>
-            {% elif 'SUCCESS' in line or 'STARTING' in line %}<span class="log-info">{{ line }}</span>
-            {% else %}<span class="log-warn">{{ line }}</span>
-            {% endif %}
-        {% endfor %}
+{% for line in logs %}{% if 'SUCCESS' in line or 'STARTING' in line %}<span class="log-ok">{{ line }}</span>
+{% elif 'FAILED' in line or 'ERROR' in line %}<span class="log-err">{{ line }}</span>
+{% elif 'CMD:' in line %}<span class="log-cmd">{{ line }}</span>
+{% else %}<span class="log-warn">{{ line }}</span>
+{% endif %}{% endfor %}
         </div>
     </div>
 </div>
 <script>
-    // Auto-scroll log to bottom on load
     var lb = document.getElementById('logbox');
     lb.scrollTop = lb.scrollHeight;
-    // Auto-refresh log every 8 seconds
-    setInterval(function(){ location.reload(); }, 8000);
 </script>
 </body>
 </html>
@@ -275,19 +470,18 @@ def index():
     config = load_config()
     saved  = False
     if request.method == 'POST':
-        config['kcc_profile']           = request.form.get('kcc_profile', 'KoLC')
-        config['kcc_format']            = request.form.get('kcc_format', 'EPUB')
-        config['kcc_cropping']          = request.form.get('kcc_cropping', '2')
-        config['kcc_splitter']          = request.form.get('kcc_splitter', '2')
-        config['kcc_gamma']             = request.form.get('kcc_gamma', 'auto')
-        config['kcc_manga_style']       = 'kcc_manga_style'       in request.form
-        config['kcc_hq']                = 'kcc_hq'                in request.form
-        config['kcc_stretch']           = 'kcc_stretch'           in request.form
-        config['kcc_forcecolor']        = 'kcc_forcecolor'        in request.form
-        config['kcc_blackborders']      = 'kcc_blackborders'      in request.form
-        config['kcc_colorautocontrast'] = 'kcc_colorautocontrast' in request.form
-        config['kcc_upscale']           = 'kcc_upscale'           in request.form
-        config['kcc_metadatatitle']     = 'kcc_metadatatitle'     in request.form
+        # Selects / text
+        for key in ('kcc_profile','kcc_format','kcc_cropping','kcc_croppingpower',
+                    'kcc_croppingminimum','kcc_splitter','kcc_gamma','kcc_batchsplit',
+                    'kcc_author','kcc_customwidth','kcc_customheight'):
+            config[key] = request.form.get(key, DEFAULT_CONFIG.get(key, ''))
+        # Checkboxes
+        for key in ('kcc_manga_style','kcc_hq','kcc_two_panel','kcc_webtoon',
+                    'kcc_blackborders','kcc_whiteborders','kcc_forcecolor',
+                    'kcc_colorautocontrast','kcc_colorcurve','kcc_stretch',
+                    'kcc_upscale','kcc_nosplitrotate','kcc_rotate',
+                    'kcc_metadatatitle','kcc_nokepub'):
+            config[key] = key in request.form
         save_config(config)
         saved = True
 
@@ -299,7 +493,6 @@ def index():
 # ── file helpers ──────────────────────────────────────────────────────────────
 
 def wait_for_file_ready(filepath):
-    """Poll until file size is stable for two consecutive checks."""
     last_size = -1
     for _ in range(30):
         try:
@@ -322,90 +515,103 @@ def get_newest_file(directory):
     ]
     return max(files, key=os.path.getmtime) if files else None
 
-def handle_output_renaming(produced_file, target_dir, original_input, c_type):
-    """
-    Move produced_file into target_dir.
-    - .kepub.epub → .kepub  (both kepubify books and KCC Kobo comics)
-    - All other extensions  → kept as-is (Kindle EPUB, MOBI, CBZ, …)
-    """
+def prune_empty_dirs(path, stop_at):
+    """Walk upward removing empty directories, stopping at stop_at."""
+    d = os.path.dirname(path)
+    while d and d != stop_at and d.startswith(stop_at):
+        try:
+            os.rmdir(d)
+            d = os.path.dirname(d)
+        except OSError:
+            break  # not empty or permission error — stop
+
+def handle_output_renaming(produced_file, target_dir, original_input, in_base):
     if not produced_file:
         return False
     filename = os.path.basename(produced_file)
+    # Only .kepub.epub → .kepub; all other extensions left untouched
     if filename.endswith('.kepub.epub'):
         filename = filename[:-len('.kepub.epub')] + '.kepub'
-    # Any other extension (plain .epub for Kindle, .mobi, .cbz) is left unchanged.
     os.makedirs(target_dir, exist_ok=True)
     final_path = os.path.join(target_dir, filename)
     shutil.move(produced_file, final_path)
     if os.path.exists(original_input):
         os.remove(original_input)
+        prune_empty_dirs(original_input, in_base)
     return True
 
 # ── core processing ───────────────────────────────────────────────────────────
 
 def process_file(filepath, c_type):
-    short = os.path.basename(filepath)[:20]
+    short   = os.path.basename(filepath)[:24]
+    in_base = BOOKS_IN if c_type == 'book' else COMICS_IN
+    temp_out = os.path.join('/tmp', os.path.basename(filepath) + '_out')
     try:
         if not wait_for_file_ready(filepath):
             log(f">>> SKIP (not ready): {short}")
             return
 
         config  = load_config()
-        in_base = BOOKS_IN if c_type == 'book' else COMICS_IN
         rel_dir = os.path.dirname(os.path.relpath(filepath, in_base))
         if rel_dir == '.':
             rel_dir = ''
         out_base   = BOOKS_OUT if c_type == 'book' else COMICS_OUT
         target_dir = os.path.join(out_base, rel_dir)
-        temp_out   = os.path.join('/tmp', os.path.basename(filepath) + '_out')
         os.makedirs(temp_out, exist_ok=True)
 
         if c_type == 'book':
             log(f">>> STARTING: kepubify on {short}")
-            cmd = [
-                'kepubify',
-                '--calibre',
-                '--inplace',
-                '--output', temp_out,
-                filepath,
-            ]
+            cmd = ['kepubify', '--calibre', '--inplace', '--output', temp_out, filepath]
         else:
             log(f">>> STARTING: KCC on {short}")
-            # ── Build KCC command ──────────────────────────────────────────
-            # All flags MUST come before the positional input path.
-            # --title requires a string value; pass the filename stem.
             cmd = [
                 'kcc-c2e',
-                '--profile',  config['kcc_profile'],
-                '--format',   config['kcc_format'],
-                '--splitter', config['kcc_splitter'],
-                '--cropping', config['kcc_cropping'],
-                '--output',   temp_out,
+                '--profile',        config['kcc_profile'],
+                '--format',         config['kcc_format'],
+                '--splitter',       config['kcc_splitter'],
+                '--cropping',       config['kcc_cropping'],
+                '--croppingpower',  config['kcc_croppingpower'],
+                '--croppingminimum',config['kcc_croppingminimum'],
+                '--batchsplit',     config['kcc_batchsplit'],
+                '--output',         temp_out,
             ]
+            # Gamma: only pass if not 1.0 (1.0 = disabled/default)
+            if config.get('kcc_gamma', '1.0') != '1.0':
+                cmd.extend(['--gamma', config['kcc_gamma']])
+
+            # Boolean flags
             if config['kcc_manga_style']:       cmd.append('--manga-style')
             if config['kcc_hq']:                cmd.append('--hq')
-            if config['kcc_stretch']:           cmd.append('--stretch')
-            if config['kcc_forcecolor']:        cmd.append('--forcecolor')
+            if config['kcc_two_panel']:         cmd.append('--two-panel')
+            if config['kcc_webtoon']:           cmd.append('--webtoon')
             if config['kcc_blackborders']:      cmd.append('--blackborders')
+            if config['kcc_whiteborders']:      cmd.append('--whiteborders')
+            if config['kcc_forcecolor']:        cmd.append('--forcecolor')
             if config['kcc_colorautocontrast']: cmd.append('--colorautocontrast')
+            if config['kcc_colorcurve']:        cmd.append('--colorcurve')
+            if config['kcc_stretch']:           cmd.append('--stretch')
             if config['kcc_upscale']:           cmd.append('--upscale')
+            if config['kcc_nosplitrotate']:     cmd.append('--nosplitrotate')
+            if config['kcc_rotate']:            cmd.append('--rotate')
+            if config['kcc_nokepub']:           cmd.append('--nokepub')
+
             if config['kcc_metadatatitle']:
-                # Extract filename without extension as the EPUB title.
                 title = os.path.splitext(os.path.basename(filepath))[0]
-                cmd.extend(['--title', title])          # ← FIX: value required
-            if config.get('kcc_gamma', 'auto').lower() != 'auto':
-                cmd.extend(['--gamma', config['kcc_gamma']])
-            cmd.append(filepath)                        # positional LAST
-            # ──────────────────────────────────────────────────────────────
+                cmd.extend(['--title', title])
+            if config.get('kcc_author', '').strip():
+                cmd.extend(['--author', config['kcc_author'].strip()])
+            if config.get('kcc_customwidth', '').strip():
+                cmd.extend(['--customwidth', config['kcc_customwidth'].strip()])
+            if config.get('kcc_customheight', '').strip():
+                cmd.extend(['--customheight', config['kcc_customheight'].strip()])
+
+            cmd.append(filepath)  # positional LAST
 
         log(f">>> CMD: {' '.join(cmd)}")
 
         process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,   # merge stderr into stdout stream
-            text=True,
-            bufsize=1,
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1,
         )
         for line in process.stdout:
             log(f"[{short}] {line.rstrip()}")
@@ -413,7 +619,7 @@ def process_file(filepath, c_type):
 
         if process.returncode == 0:
             produced = get_newest_file(temp_out)
-            if handle_output_renaming(produced, target_dir, filepath, c_type):
+            if handle_output_renaming(produced, target_dir, filepath, in_base):
                 log(f">>> SUCCESS: {short}")
             else:
                 log(f">>> FAILED (no output file found): {short}")
@@ -425,14 +631,13 @@ def process_file(filepath, c_type):
     except Exception as e:
         log(f">>> ERROR: {short} — {e}")
     finally:
-        if os.path.exists(temp_out):
-            shutil.rmtree(temp_out, ignore_errors=True)
+        shutil.rmtree(temp_out, ignore_errors=True)
         with lock_mutex:
             PROCESSING_LOCKS.discard(filepath)
 
 # ── scanner ───────────────────────────────────────────────────────────────────
 
-BOOK_EXTS  = {'.epub', '.kepub'}
+BOOK_EXTS  = {'.epub'}
 COMIC_EXTS = {'.cbz', '.cbr', '.zip', '.rar'}
 
 def scan_directories():
@@ -471,6 +676,6 @@ def watch_loop():
 # ── entrypoint ────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    log(">>> Converter started. Watching /Books_in and /Comics_in every 10s.")
+    log(">>> Bindery started. Watching /Books_in and /Comics_in every 10s.")
     threading.Thread(target=watch_loop, daemon=True).start()
     app.run(host='0.0.0.0', port=5000, threaded=True)
