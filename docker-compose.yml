@@ -13,6 +13,7 @@ services:
       - ./books_out:/Books_out
       - ./comics_in:/Comics_in
       - ./comics_out:/Comics_out
+      - ./comics_raw:/Comics_raw
     restart: unless-stopped
     logging:
       driver: "json-file"

@@ -2,7 +2,6 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1
 
-# Enable contrib/non-free repos for unrar
 RUN set -eux; \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
       sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/g' \
@@ -21,7 +20,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       gosu \
     && rm -rf /var/lib/apt/lists/*
 
-# Install kepubify — picks the correct binary for the build arch
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
@@ -36,19 +34,18 @@ RUN set -eux; \
     chmod +x /usr/local/bin/kepubify; \
     kepubify --version
 
-# 7z compatibility symlinks (KCC uses 7za/7zr internally)
 RUN ln -sf /usr/bin/7z /usr/local/bin/7za \
  && ln -sf /usr/bin/7z /usr/local/bin/7zr || true
 
-# Python dependencies: Flask + KCC from source
 RUN pip install --no-cache-dir Flask packaging gunicorn "git+https://github.com/ciromattia/kcc.git@v9.4.3"
 
-RUN mkdir -p /app /app/config /Comics_in /Comics_out /Books_in /Books_out
+RUN mkdir -p /app /app/config /Comics_in /Comics_out /Books_in /Books_out /Comics_raw
 
 WORKDIR /app
 COPY app.py            /app/app.py
 COPY config.py         /app/config.py
 COPY processor.py      /app/processor.py
+COPY raw_processor.py  /app/raw_processor.py
 COPY templates/        /app/templates/
 COPY entrypoint.sh     /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.3.0 — Comics Raw Pipeline
+
+- Added `Comics_raw` folder — drop a flat folder of images and Bindery automatically zips it into a CBZ and feeds it into the normal KCC pipeline
+- Folders with subfolders or no images are moved to `Comics_raw/unprocessed/` with a clear log message explaining why
+- Original folders moved to `Comics_raw/processed/` on success
+- Collision-safe naming if a CBZ with the same name already exists in `Comics_in`
+- Raw folders held until stable (no file changes for 30 s) before processing, so mid-transfer folders are never zipped
+- Fixed: `entrypoint.sh` now chowns `/Comics_raw` so no manual permission fix is needed on first run
+- 16 new tests covering the full raw pipeline
+
 ## v2.2.0 — Tests, Health Endpoint & Batch Split Fix
 
 - Added test suite (19 tests covering config, processor logic, and Flask routes)

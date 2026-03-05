@@ -49,10 +49,13 @@ http://<server-ip>:5000
 
 ```
 bindery/
-├── books_in/        ← drop .epub files here (Kobo users only)
+├── books_in/        ← drop .epub ├── books_in/        ← drop .epub files here (Kobo users only)
 ├── books_out/       ← converted .kepub files appear here
 ├── comics_in/       ← drop .cbz / .cbr / .zip / .rar here
 ├── comics_out/      ← converted files appear here
+├── comics_raw/      ← drop a flat folder of images here; Bindery zips it to CBZ and processes it automatically
+│   ├── processed/   ← original image folders moved here on success
+│   └── unprocessed/ ← folders with subfolders or no images moved here
 └── config/          ← settings.json persisted here
 ```
 
@@ -165,6 +168,7 @@ Only used when the Device Profile is set to **Generic / Custom**.
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
 - On success: converted file is moved to the output folder, source file is deleted.
 - On failure: source file is renamed to `<filename>.failed` so it is not retried in a loop.
+- Raw folders in Comics_raw are held until stable (no file changes for 30 seconds) before processing begins, to avoid zipping a mid-transfer folder.
 - Live logs are shown in the WebUI and streamed to `docker logs`.
 
 ---

@@ -13,7 +13,7 @@ if ! getent passwd abc >/dev/null 2>&1; then
 fi
 
 # Force ownership of mapped volumes
-chown -R abc:abc /app/config /Comics_in /Comics_out /Books_in /Books_out
+chown -R abc:abc /app/config /Comics_in /Comics_out /Books_in /Books_out /Comics_raw
 
 # Drop privileges and execute application
 exec gosu abc "$@"

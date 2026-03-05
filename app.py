@@ -3,6 +3,7 @@ from flask import Flask, jsonify, request, render_template
 
 from config import DEFAULT_CONFIG, load_config, save_config
 from processor import LOG_BUFFER, log_lock, log, watch_loop
+from raw_processor import raw_watch_loop
 
 app = Flask(__name__)
 VERSION = "2.2.0"
@@ -37,8 +38,9 @@ def index():
     return render_template('index.html', config=config, saved=saved, logs=logs, version=VERSION)
 
 
-log(">>> Bindery started. Watching /Books_in and /Comics_in every 10s.")
+log(">>> Bindery started. Watching /Books_in, /Comics_in, and /Comics_raw every 10s.")
 threading.Thread(target=watch_loop, daemon=True).start()
+threading.Thread(target=raw_watch_loop, daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True)
