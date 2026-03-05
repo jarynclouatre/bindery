@@ -10,6 +10,8 @@ All settings are configurable at runtime via a WebUI on port 5000 — no contain
 
 **Supported devices:** Kindle, Kobo, reMarkable, and any device KCC has a profile for.
 
+![Bindery WebUI](screenshot.png)
+
 ### Use Cases
 
 Bindery fits anywhere in a self-hosted media pipeline. Point the output folders at whatever consumes your files:
