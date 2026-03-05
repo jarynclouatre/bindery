@@ -1,17 +1,11 @@
-# E-Reader Converter
+# E-Reader Converter (All-in-One)
 
-An automated Docker container for converting comics and ebooks for e-readers. It integrates [Kindle Comic Converter (KCC)](https://github.com/ciromattia/kcc) and [Kepubify](https://github.com/pgaskin/kepubify) with a continuous directory watcher and a WebUI for configuration.
+Automated processing for Kobo and Kindle devices.
 
-## Features
-* **Automated Processing**: Drops files into the input directories; the container detects, processes, and outputs the converted files automatically.
-* **WebUI**: Configure all KCC CLI parameters on the fly via a web interface.
-* **Failsafes**: Includes file-growth monitoring, processing deduplication, `.failed` appending for errored files, and automatic source cleanup upon successful conversion.
-* **Pass-Through**: Ignores already-converted formats (like `.kepub`) to prevent unnecessary processing loops.
+### Permissions (PUID/PGID)
+This container uses a startup script to map permissions. This ensures the converter can read your files and write the results regardless of which user owns the folders on your host machine. It drops root privileges immediately after the `chown` is complete.
 
-## Deployment
-Clone the repository and spin up the container using Docker Compose:
-
-```bash
-git clone [https://github.com/jarynclouatre/ereader-converter.git](https://github.com/jarynclouatre/ereader-converter.git)
-cd ereader-converter
-docker-compose up -d
+### How to use:
+1. Map your `in` and `out` folders in `docker-compose.yml`.
+2. Set `PUID` and `PGID` to your host user's ID (type `id` in your server terminal to find them).
+3. Access the WebUI at port 5000 to choose your device profile.
