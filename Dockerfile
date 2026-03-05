@@ -12,6 +12,7 @@ RUN set -eux; \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    git \
     p7zip-full \
     p7zip-rar \
     unrar \
