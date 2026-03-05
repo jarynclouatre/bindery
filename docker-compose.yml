@@ -9,8 +9,8 @@ services:
       - PGID=1000
     volumes:
       - ./config:/app/config
-      - ./comics_in:/Comics_in
-      - ./comics_out:/Comics_out
       - ./books_in:/Books_in
       - ./books_out:/Books_out
+      - ./comics_in:/Comics_in
+      - ./comics_out:/Comics_out
     restart: unless-stopped
