@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  ereader-converter:
+    build: .
+    container_name: ereader-converter
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./config:/app/config
+      - ./comics_in:/Comics_in
+      - ./comics_out:/Comics_out
+      - ./books_in:/Books_in
+      - ./books_out:/Books_out
+    restart: unless-stopped
+    user: "1000:1000"

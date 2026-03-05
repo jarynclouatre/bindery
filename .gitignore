@@ -1,0 +1,7 @@
+config/
+comics_in/
+comics_out/
+books_in/
+books_out/
+__pycache__/
+*.failed
