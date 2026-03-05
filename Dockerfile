@@ -46,8 +46,11 @@ RUN pip install --no-cache-dir Flask packaging gunicorn "git+https://github.com/
 RUN mkdir -p /app /app/config /Comics_in /Comics_out /Books_in /Books_out
 
 WORKDIR /app
-COPY app.py        /app/app.py
-COPY entrypoint.sh /app/entrypoint.sh
+COPY app.py            /app/app.py
+COPY config.py         /app/config.py
+COPY processor.py      /app/processor.py
+COPY templates/        /app/templates/
+COPY entrypoint.sh     /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 5000
