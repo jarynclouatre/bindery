@@ -125,8 +125,10 @@ Run `id` on the host to find your values.
 | Webtoon | off | Optimises for vertical-strip webtoon format |
 | Stretch | **on** | Fills the screen, ignoring the original aspect ratio |
 | Upscale | off | Upscales images smaller than the device resolution |
-| No Split / Rotate | off | Disables splitting of landscape pages entirely |
-| Rotate | off | Rotates landscape pages instead of splitting them |
+| No Split / Rotate | off | Disables splitting of landscape pages entirely (overrides splitter)|
+| Rotate | off | Rotates landscape pages instead of splitting them (overrides splitter) |
+
+Note: Some Page Layout settings have priority over others. For example, enabling No Split / Rotate will override the Splitter settings to ensure landscape pages remain as single images.
 
 ### Borders
 
