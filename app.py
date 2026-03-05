@@ -1,11 +1,16 @@
 import threading
-from flask import Flask, request, render_template
+from flask import Flask, jsonify, request, render_template
 
 from config import DEFAULT_CONFIG, load_config, save_config
 from processor import LOG_BUFFER, log_lock, log, watch_loop
 
 app = Flask(__name__)
-VERSION = "2.1.0"
+VERSION = "2.2.0"
+
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
 
 
 @app.route('/', methods=['GET', 'POST'])

@@ -52,13 +52,14 @@ def wait_for_file_ready(filepath):
     return False
 
 
-def get_newest_file(directory):
+def get_output_files(directory):
+    """Return all files in directory, sorted oldest to newest."""
     files = [
         os.path.join(directory, f)
         for f in os.listdir(directory)
         if os.path.isfile(os.path.join(directory, f))
     ]
-    return max(files, key=os.path.getmtime) if files else None
+    return sorted(files, key=os.path.getmtime)
 
 
 def prune_empty_dirs(file_path, stop_at):
@@ -72,19 +73,31 @@ def prune_empty_dirs(file_path, stop_at):
             break
 
 
-def handle_output_renaming(produced_file, target_dir, original_input, in_base):
-    if not produced_file:
-        return False
+def move_output_file(produced_file, target_dir):
+    """Move a single conversion output to target_dir, applying any needed renaming."""
     filename = os.path.basename(produced_file)
     if filename.endswith('.kepub.epub'):
         filename = filename[:-len('.kepub.epub')] + '.kepub'
     os.makedirs(target_dir, exist_ok=True)
     final_path = os.path.join(target_dir, filename)
     shutil.move(produced_file, final_path)
-    if os.path.exists(original_input):
-        os.remove(original_input)
-        prune_empty_dirs(original_input, in_base)
-    return True
+
+
+class ConversionError(Exception):
+    def __init__(self, returncode):
+        self.returncode = returncode
+
+
+def _run_conversion(cmd, short):
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, bufsize=1,
+    )
+    for line in process.stdout:
+        log(f"[{short}] {line.rstrip()}")
+    process.wait()
+    if process.returncode != 0:
+        raise ConversionError(process.returncode)
 
 
 def process_file(filepath, c_type):
@@ -162,9 +175,16 @@ def process_file(filepath, c_type):
                 log(f">>> CMD: {' '.join(cmd)}")
                 _run_conversion(cmd, short)
 
-        produced = get_newest_file(temp_out)
-        if handle_output_renaming(produced, target_dir, filepath, in_base):
-            log(f">>> SUCCESS: {short}")
+        produced = get_output_files(temp_out)
+        if produced:
+            for f in produced:
+                move_output_file(f, target_dir)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                prune_empty_dirs(filepath, in_base)
+            count = len(produced)
+            suffix = 's' if count > 1 else ''
+            log(f">>> SUCCESS ({count} file{suffix}): {short}")
         else:
             log(f">>> FAILED (no output file found): {short}")
 
@@ -178,23 +198,6 @@ def process_file(filepath, c_type):
         shutil.rmtree(temp_out, ignore_errors=True)
         with lock_mutex:
             PROCESSING_LOCKS.discard(filepath)
-
-
-class ConversionError(Exception):
-    def __init__(self, returncode):
-        self.returncode = returncode
-
-
-def _run_conversion(cmd, short):
-    process = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1,
-    )
-    for line in process.stdout:
-        log(f"[{short}] {line.rstrip()}")
-    process.wait()
-    if process.returncode != 0:
-        raise ConversionError(process.returncode)
 
 
 def scan_directories():
