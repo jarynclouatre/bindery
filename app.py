@@ -5,7 +5,7 @@ from config import DEFAULT_CONFIG, load_config, save_config
 from processor import LOG_BUFFER, log_lock, log, watch_loop
 
 app = Flask(__name__)
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 
 
 @app.route('/', methods=['GET', 'POST'])

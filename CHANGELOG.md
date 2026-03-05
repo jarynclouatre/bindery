@@ -1,0 +1,26 @@
+# Changelog
+
+## v2.1.0 — Concurrent Conversion Fix
+
+- Fixed a bug where multiple comics dropped at once could cause KCC to fail with "Failed to extract archive" due to concurrent execution
+- KCC conversions now queue and run one at a time (kepubify/books are unaffected and still run in parallel)
+- Added `QUEUED` log status so you can see when a file is waiting for a slot
+- Improved log prefix length (40 chars) so long filenames are distinguishable
+- Temp paths are now pure UUIDs, eliminating any risk of filename-based conflicts in /tmp
+- Cleaner internal error handling with a dedicated `ConversionError` class
+
+## v2.0.0 — Code Refactor
+
+- Refactored from a single-file app into a proper package structure
+  - `config.py` — settings management
+  - `processor.py` — file watching and conversion logic
+  - `templates/index.html` — HTML template extracted from Python
+  - `app.py` — lean Flask entry point
+
+## v1.0.0 — Stable Release
+
+- Automated folder watching (every 10 seconds) for Books and Comics
+- Full WebUI for real-time KCC and kepubify configuration
+- Native Kobo support (auto-renaming `.kepub.epub` to `.kepub`)
+- NAS-friendly polling architecture (SMB/NFS compatible)
+- Production-ready Docker setup with PUID/PGID support and log rotation
