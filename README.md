@@ -10,7 +10,7 @@ All settings are configurable at runtime via a WebUI on port 5000 — no contain
 
 **Supported devices:** Kindle, Kobo, reMarkable, and any device KCC has a profile for.
 
-![Bindery WebUI](screenshot.png)
+![Bindery WebUI](webui.png)
 
 ### Use Cases
 
