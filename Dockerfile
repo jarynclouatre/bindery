@@ -41,7 +41,7 @@ RUN ln -sf /usr/bin/7z /usr/local/bin/7za \
  && ln -sf /usr/bin/7z /usr/local/bin/7zr || true
 
 # Python dependencies: Flask + KCC from source
-RUN pip install --no-cache-dir Flask packaging "git+https://github.com/ciromattia/kcc.git"
+RUN pip install --no-cache-dir Flask packaging gunicorn "git+https://github.com/ciromattia/kcc.git@v9.4.3"
 
 RUN mkdir -p /app /app/config /Comics_in /Comics_out /Books_in /Books_out
 
@@ -53,4 +53,4 @@ RUN chmod +x /app/entrypoint.sh
 EXPOSE 5000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["python", "app.py"]
+CMD ["gunicorn", "--workers", "1", "--bind", "0.0.0.0:5000", "--timeout", "300", "app:app"]
