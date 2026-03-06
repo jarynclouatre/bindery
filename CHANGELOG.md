@@ -2,6 +2,8 @@
 
 ## v2.5.0 — Bug Fixes
 
+- Fixed: gunicorn "Control server error: Permission denied" on container restart — caused by a stale gunicorn socket in `/tmp` persisting across restarts; moved worker tmp dir to `/dev/shm` which is wiped on every container start
+- Fixed: `settings.json` could be left truncated if the process was killed mid-write (OOM, `docker stop` during a save), silently resetting all settings to defaults on next start — write is now atomic via temp file + `os.replace()`
 - Fixed: files that convert successfully but produce no output were retried on every scan instead of being flagged `.failed`
 - Fixed: subdirectory path calculation for files in the root of `Comics_in` / `Books_in` used the wrong `os.path` call order, making the check dead code (worked by accident; now correct)
 - Fixed: raw folders that hit an unexpected error during zipping were left in `Comics_raw` and retried forever — they are now moved to `Comics_raw/unprocessed/` like other failures

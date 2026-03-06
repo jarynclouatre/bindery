@@ -55,5 +55,7 @@ def load_config():
 def save_config(config):
     with _config_lock:
         os.makedirs(CONFIG_DIR, exist_ok=True)
-        with open(CONFIG_FILE, 'w') as f:
+        tmp = CONFIG_FILE + '.tmp'
+        with open(tmp, 'w') as f:
             json.dump(config, f, indent=4)
+        os.replace(tmp, CONFIG_FILE)
