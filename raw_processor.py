@@ -1,3 +1,5 @@
+"""Raw image folder pipeline — detect, validate, zip, and hand off to Comics_in."""
+
 import os
 import time
 import uuid
@@ -21,6 +23,8 @@ raw_lock_mutex       = threading.Lock()
 
 
 def is_folder_stable(folderpath):
+    """Return True if folderpath exists, is non-empty, and no file has been
+    modified within the last STABILITY_SECONDS seconds."""
     try:
         entries = os.listdir(folderpath)
     except OSError:
@@ -66,6 +70,12 @@ def _available_dest_path(parent_dir, name):
 
 
 def process_raw_folder(folderpath):
+    """Validate, zip, and dispatch a flat image folder into the Comics_in pipeline.
+
+    Rejects folders that contain subfolders or no image files, moving them to
+    Comics_raw/unprocessed/ with a log message explaining why. On success the
+    original folder is moved to Comics_raw/processed/.
+    """
     short    = os.path.basename(folderpath)[:40]
     temp_cbz = os.path.join(os.environ.get("TMPDIR", "/tmp"), uuid.uuid4().hex + ".cbz")
     try:

@@ -1,3 +1,5 @@
+"""Persistent settings management — load, save, and default KCC/kepubify configuration."""
+
 import os
 import json
 import threading
@@ -38,6 +40,10 @@ _config_lock = threading.Lock()
 
 
 def load_config():
+    """Load settings from disk, filling any missing keys from DEFAULT_CONFIG.
+
+    Returns a copy of DEFAULT_CONFIG if the file is absent or unreadable.
+    """
     with _config_lock:
         if os.path.exists(CONFIG_FILE):
             try:
@@ -53,6 +59,7 @@ def load_config():
 
 
 def save_config(config):
+    """Write config to disk atomically via a temp file and os.replace."""
     with _config_lock:
         os.makedirs(CONFIG_DIR, exist_ok=True)
         tmp = CONFIG_FILE + '.tmp'

@@ -1,3 +1,5 @@
+"""Flask application factory, WebUI routes, and form validation."""
+
 import threading
 from flask import Flask, jsonify, request, render_template
 
@@ -5,7 +7,7 @@ from config import DEFAULT_CONFIG, load_config, save_config
 from processor import LOG_BUFFER, log_lock, log, watch_loop
 from raw_processor import raw_watch_loop
 
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 
 
 def _clamp(value, min_val, max_val, default):

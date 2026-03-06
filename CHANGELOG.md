@@ -5,6 +5,9 @@
 - Fixed: `comics_raw/` added to `.gitignore` to prevent accidentally tracking dropped image files
 - Fixed: `test_processor.py` mock config now imports directly from `config.py` instead of using a stale hardcoded fallback dict
 - Refactored: `app.py` now uses a `create_app()` factory — background threads no longer start at import time, removing the need for the import-time `threading.Thread` patch in `conftest.py`
+- Refactored: `_build_kcc_cmd` extracted from `process_file` in `processor.py` — KCC argument building is now a standalone testable function
+- Added module docstrings to all Python modules
+- Added docstrings to previously undocumented functions
 
 ## v2.5.0 — Bug Fixes
 

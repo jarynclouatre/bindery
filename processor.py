@@ -1,3 +1,5 @@
+"""File watching, conversion dispatch, and output handling for books and comics."""
+
 import os
 import sys
 import time
@@ -36,10 +38,13 @@ def log(msg):
     sys.stdout.flush()
 
 
-# Polls every 2s for up to 60s (30 attempts). On timeout returns False and
-# process_file logs SKIP — source is intentionally left untouched so it
-# retries next scan. Only definitive failures rename to .failed.
 def wait_for_file_ready(filepath):
+    """Poll until the file size stabilises, indicating the transfer is complete.
+
+    Polls every 2s for up to 60s (30 attempts). Returns False on timeout; the
+    caller logs SKIP and leaves the source untouched so it retries next scan.
+    Only definitive failures rename to .failed.
+    """
     last_size = -1
     for _ in range(30):
         try:
@@ -66,6 +71,7 @@ def get_output_files(directory):
 
 
 def prune_empty_dirs(file_path, stop_at):
+    """Walk upward from file_path's directory, removing empty dirs until stop_at."""
     d = os.path.dirname(os.path.abspath(file_path))
     stop_at = os.path.abspath(stop_at)
     while d != stop_at and d.startswith(stop_at + os.sep):
@@ -93,11 +99,14 @@ def move_output_file(produced_file, target_dir):
 
 
 class ConversionError(Exception):
+    """Raised when a converter process exits with a non-zero return code."""
+
     def __init__(self, returncode):
         self.returncode = returncode
 
 
 def _run_conversion(cmd, short):
+    """Run cmd, streaming output to the log. Raises ConversionError on non-zero exit."""
     process = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, bufsize=1,
@@ -107,6 +116,56 @@ def _run_conversion(cmd, short):
     process.wait()
     if process.returncode != 0:
         raise ConversionError(process.returncode)
+
+
+def _build_kcc_cmd(config, filepath, temp_out):
+    """Build and return the kcc-c2e argument list from the current config."""
+    cmd = [
+        'kcc-c2e',
+        '--profile',         config['kcc_profile'],
+        '--format',          config['kcc_format'],
+        '--splitter',        config['kcc_splitter'],
+        '--cropping',        config['kcc_cropping'],
+        '--croppingpower',   config['kcc_croppingpower'],
+        '--croppingminimum', config['kcc_croppingminimum'],
+        '--batchsplit',      config['kcc_batchsplit'],
+        '--output',          temp_out,
+    ]
+
+    gamma = config.get('kcc_gamma', '0')
+    if gamma and gamma != '0':
+        cmd.extend(['--gamma', gamma])
+
+    if config['kcc_manga_style']:       cmd.append('--manga-style')
+    if config['kcc_hq']:                cmd.append('--hq')
+    if config['kcc_two_panel']:         cmd.append('--two-panel')
+    if config['kcc_webtoon']:           cmd.append('--webtoon')
+    if config['kcc_blackborders']:      cmd.append('--blackborders')
+    if config['kcc_whiteborders']:      cmd.append('--whiteborders')
+    if config['kcc_forcecolor']:        cmd.append('--forcecolor')
+    if config['kcc_colorautocontrast']: cmd.append('--colorautocontrast')
+    if config['kcc_colorcurve']:        cmd.append('--colorcurve')
+    if config['kcc_stretch']:           cmd.append('--stretch')
+    if config['kcc_upscale']:           cmd.append('--upscale')
+    if config['kcc_nosplitrotate']:     cmd.append('--nosplitrotate')
+    if config['kcc_rotate']:            cmd.append('--rotate')
+    if config['kcc_nokepub']:           cmd.append('--nokepub')
+
+    if config['kcc_metadatatitle']:
+        title = os.path.splitext(os.path.basename(filepath))[0]
+        cmd.extend(['--title', title])
+
+    if config.get('kcc_author', '').strip():
+        cmd.extend(['--author', config['kcc_author'].strip()])
+
+    if config['kcc_profile'] == 'OTHER':
+        if config.get('kcc_customwidth', '').strip():
+            cmd.extend(['--customwidth', config['kcc_customwidth'].strip()])
+        if config.get('kcc_customheight', '').strip():
+            cmd.extend(['--customheight', config['kcc_customheight'].strip()])
+
+    cmd.append(filepath)
+    return cmd
 
 
 def process_file(filepath, c_type):
@@ -133,52 +192,7 @@ def process_file(filepath, c_type):
 
         else:
             log(f">>> STARTING: KCC on {short}")
-            cmd = [
-                'kcc-c2e',
-                '--profile',         config['kcc_profile'],
-                '--format',          config['kcc_format'],
-                '--splitter',        config['kcc_splitter'],
-                '--cropping',        config['kcc_cropping'],
-                '--croppingpower',   config['kcc_croppingpower'],
-                '--croppingminimum', config['kcc_croppingminimum'],
-                '--batchsplit',      config['kcc_batchsplit'],
-                '--output',          temp_out,
-            ]
-
-            gamma = config.get('kcc_gamma', '0')
-            if gamma and gamma != '0':
-                cmd.extend(['--gamma', gamma])
-
-            if config['kcc_manga_style']:       cmd.append('--manga-style')
-            if config['kcc_hq']:                cmd.append('--hq')
-            if config['kcc_two_panel']:         cmd.append('--two-panel')
-            if config['kcc_webtoon']:           cmd.append('--webtoon')
-            if config['kcc_blackborders']:      cmd.append('--blackborders')
-            if config['kcc_whiteborders']:      cmd.append('--whiteborders')
-            if config['kcc_forcecolor']:        cmd.append('--forcecolor')
-            if config['kcc_colorautocontrast']: cmd.append('--colorautocontrast')
-            if config['kcc_colorcurve']:        cmd.append('--colorcurve')
-            if config['kcc_stretch']:           cmd.append('--stretch')
-            if config['kcc_upscale']:           cmd.append('--upscale')
-            if config['kcc_nosplitrotate']:     cmd.append('--nosplitrotate')
-            if config['kcc_rotate']:            cmd.append('--rotate')
-            if config['kcc_nokepub']:           cmd.append('--nokepub')
-
-            if config['kcc_metadatatitle']:
-                title = os.path.splitext(os.path.basename(filepath))[0]
-                cmd.extend(['--title', title])
-
-            if config.get('kcc_author', '').strip():
-                cmd.extend(['--author', config['kcc_author'].strip()])
-
-            if config['kcc_profile'] == 'OTHER':
-                if config.get('kcc_customwidth', '').strip():
-                    cmd.extend(['--customwidth', config['kcc_customwidth'].strip()])
-                if config.get('kcc_customheight', '').strip():
-                    cmd.extend(['--customheight', config['kcc_customheight'].strip()])
-
-            cmd.append(filepath)
-
+            cmd = _build_kcc_cmd(config, filepath, temp_out)
             log(f">>> QUEUED (waiting for KCC slot): {short}")
             with kcc_semaphore:
                 log(f">>> CMD: {' '.join(cmd)}")
