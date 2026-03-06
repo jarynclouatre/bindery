@@ -9,7 +9,7 @@ import threading
 import subprocess
 from collections import deque
 
-from config import load_config
+from config import load_config, ConfigDict
 
 COMICS_IN  = '/Comics_in'
 COMICS_OUT = '/Comics_out'
@@ -30,7 +30,7 @@ log_lock         = threading.Lock()
 kcc_semaphore = threading.Semaphore(1)
 
 
-def log(msg):
+def log(msg: str) -> None:
     line = msg.rstrip()
     with log_lock:
         LOG_BUFFER.append(line)
@@ -38,7 +38,7 @@ def log(msg):
     sys.stdout.flush()
 
 
-def wait_for_file_ready(filepath):
+def wait_for_file_ready(filepath: str) -> bool:
     """Poll until the file size stabilises, indicating the transfer is complete.
 
     Polls every 2s for up to 60s (30 attempts). Returns False on timeout; the
@@ -60,7 +60,7 @@ def wait_for_file_ready(filepath):
     return False
 
 
-def get_output_files(directory):
+def get_output_files(directory: str) -> list[str]:
     """Return all files in directory, sorted oldest to newest."""
     files = [
         os.path.join(directory, f)
@@ -70,7 +70,7 @@ def get_output_files(directory):
     return sorted(files, key=os.path.getmtime)
 
 
-def prune_empty_dirs(file_path, stop_at):
+def prune_empty_dirs(file_path: str, stop_at: str) -> None:
     """Walk upward from file_path's directory, removing empty dirs until stop_at."""
     d = os.path.dirname(os.path.abspath(file_path))
     stop_at = os.path.abspath(stop_at)
@@ -82,7 +82,7 @@ def prune_empty_dirs(file_path, stop_at):
             break
 
 
-def move_output_file(produced_file, target_dir):
+def move_output_file(produced_file: str, target_dir: str) -> None:
     """Move a single conversion output to target_dir, applying any needed renaming."""
     filename = os.path.basename(produced_file)
     if filename.endswith('.kepub.epub'):
@@ -101,11 +101,11 @@ def move_output_file(produced_file, target_dir):
 class ConversionError(Exception):
     """Raised when a converter process exits with a non-zero return code."""
 
-    def __init__(self, returncode):
+    def __init__(self, returncode: int) -> None:
         self.returncode = returncode
 
 
-def _run_conversion(cmd, short):
+def _run_conversion(cmd: list[str], short: str) -> None:
     """Run cmd, streaming output to the log. Raises ConversionError on non-zero exit."""
     process = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -118,7 +118,7 @@ def _run_conversion(cmd, short):
         raise ConversionError(process.returncode)
 
 
-def _build_kcc_cmd(config, filepath, temp_out):
+def _build_kcc_cmd(config: ConfigDict, filepath: str, temp_out: str) -> list[str]:
     """Build and return the kcc-c2e argument list from the current config."""
     cmd = [
         'kcc-c2e',
@@ -168,7 +168,7 @@ def _build_kcc_cmd(config, filepath, temp_out):
     return cmd
 
 
-def process_file(filepath, c_type):
+def process_file(filepath: str, c_type: str) -> None:
     short    = os.path.basename(filepath)[:40]
     in_base  = BOOKS_IN if c_type == 'book' else COMICS_IN
     temp_out = os.path.join('/tmp', uuid.uuid4().hex + '_out')
@@ -227,7 +227,7 @@ def process_file(filepath, c_type):
             PROCESSING_LOCKS.discard(filepath)
 
 
-def scan_directories():
+def scan_directories() -> None:
     for root, _, files in os.walk(BOOKS_IN):
         for f in files:
             if os.path.splitext(f)[1].lower() in BOOK_EXTS and not f.endswith('.failed'):
@@ -249,7 +249,7 @@ def scan_directories():
                                          args=(path, 'comic'), daemon=True).start()
 
 
-def watch_loop():
+def watch_loop() -> None:
     while True:
         try:
             scan_directories()
