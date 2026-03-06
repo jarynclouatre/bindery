@@ -2,7 +2,6 @@
 
 ## v2.6.0 — Refactor & Housekeeping
 - Added `requirements.txt` listing production dependencies (Flask, gunicorn, packaging, kcc)
-
 - Fixed: `comics_raw/` added to `.gitignore` to prevent accidentally tracking dropped image files
 - Fixed: `test_processor.py` mock config now imports directly from `config.py` instead of using a stale hardcoded fallback dict
 - Refactored: `app.py` now uses a `create_app()` factory — background threads no longer start at import time, removing the need for the import-time `threading.Thread` patch in `conftest.py`
