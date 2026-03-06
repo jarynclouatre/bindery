@@ -162,7 +162,7 @@ Only used when the Device Profile is set to **Generic / Custom**.
 
 ## Behaviour
 
-- The scanner polls `/Books_in` and `/Comics_in` every **10 seconds** (polling is used over inotify to ensure compatibility with NAS network drives).
+- The scanner polls `/Books_in`, `/Comics_in` and `/Comics_raw` every **10 seconds** (polling is used over inotify to ensure compatibility with NAS network drives).
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
 - On success: converted file is moved to the output folder, source file is deleted.
 - On failure: source file is renamed to `<filename>.failed` so it is not retried in a loop.
