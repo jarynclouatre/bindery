@@ -1,6 +1,6 @@
 services:
   bindery:
-    build: .
+    image: dinkeyes/bindery:latest
     container_name: bindery
     ports:
       - "5000:5000"
