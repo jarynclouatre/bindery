@@ -36,6 +36,9 @@ def log(msg):
     sys.stdout.flush()
 
 
+# Polls every 2s for up to 60s (30 attempts). On timeout returns False and
+# process_file logs SKIP — source is intentionally left untouched so it
+# retries next scan. Only definitive failures rename to .failed.
 def wait_for_file_ready(filepath):
     last_size = -1
     for _ in range(30):
@@ -202,6 +205,8 @@ def process_file(filepath, c_type):
             os.rename(filepath, filepath + '.failed')
     except Exception as e:
         log(f">>> ERROR: {short} — {e}")
+        if os.path.exists(filepath):
+            os.rename(filepath, filepath + '.failed')
     finally:
         shutil.rmtree(temp_out, ignore_errors=True)
         with lock_mutex:

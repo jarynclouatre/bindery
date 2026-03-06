@@ -2,6 +2,9 @@
 
 ## v2.5.0 — Bug Fixes
 
+- Fixed: unexpected exceptions in `process_file` (e.g. permission errors, disk full) left the source file untouched and retried forever — now renamed `.failed` same as other failure paths
+- Fixed: WebUI form accepted non-numeric input for `croppingpower`, `croppingminimum`, `customwidth`, and `customheight` — values are now validated and clamped before saving, preventing bad arguments reaching KCC
+- Added comment to `wait_for_file_ready` explaining the 60s timeout and why SKIP does not rename to `.failed`
 - Fixed: gunicorn "Control server error: Permission denied" logged on every container start — gunicorn 25.1.0 introduced a control socket (for the `gunicornc` CLI) defaulting to `gunicorn.ctl` in the working directory `/app`, which the unprivileged `abc` user cannot write to; disabled with `--no-control-socket` as Bindery has no use for it
 - Fixed: `settings.json` could be left truncated if the process was killed mid-write (OOM, `docker stop` during a save), silently resetting all settings to defaults on next start — write is now atomic via temp file + `os.replace()`
 - Fixed: files that convert successfully but produce no output were retried on every scan instead of being flagged `.failed`

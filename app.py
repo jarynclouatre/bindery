@@ -9,6 +9,28 @@ app = Flask(__name__)
 VERSION = "2.5.0"
 
 
+def _clamp(value, min_val, max_val, default):
+    """Parse value as float, clamping to [min_val, max_val]. Returns default on invalid input."""
+    try:
+        return str(max(min_val, min(max_val, float(value))))
+    except (ValueError, TypeError):
+        return str(default)
+
+
+def _validate_post(config):
+    """Clamp numeric fields to their valid ranges after reading from the form."""
+    config['kcc_croppingpower']   = _clamp(config['kcc_croppingpower'],   0.1, 2.0, 1.0)
+    config['kcc_croppingminimum'] = _clamp(config['kcc_croppingminimum'],   0,  50,  1)
+    for key in ('kcc_customwidth', 'kcc_customheight'):
+        val = config[key].strip()
+        if val:
+            try:
+                config[key] = str(max(0, int(val)))
+            except (ValueError, TypeError):
+                config[key] = ''
+    return config
+
+
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok'})
@@ -29,6 +51,7 @@ def index():
                     'kcc_upscale', 'kcc_nosplitrotate', 'kcc_rotate',
                     'kcc_metadatatitle', 'kcc_nokepub'):
             config[key] = key in request.form
+        config = _validate_post(config)
         save_config(config)
         saved = True
 
