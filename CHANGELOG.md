@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.7.0 — Device Profiles & Borders Overhaul
+- Fixed: incorrect KCC profile keys — `K578` split into correct `K57` (Kindle 5/7) and `K810` (Kindle 8/10); `KPW3` corrected to `KPW34`; `KoM`+`KoT` merged to correct `KoMT` (Kobo Mini/Touch); `KoCE` corrected to `KoCC` (Kobo Clara Colour); removed `KoE2` (no KCC profile exists)
+- Added missing KCC profiles: `K11` (Kindle 11), `KCS` (Kindle Colorsoft), `KS3` (Kindle Scribe 3), `KSCS` (Kindle Scribe Colorsoft), `KS1860`, `KS1920`, `KoN` (Kobo Nia), `KoS` (Kobo Sage), `RmkPPMove` (reMarkable Paper Pro Move)
+- Updated `KO` label to include Paperwhite 12; updated `KS` label to Scribe 1/2
+- Changed: Borders setting replaced two checkboxes (Black Borders / White Borders) with a single dropdown (None / Black / White)
+- Note: existing `settings.json` files will get the new `kcc_borders` key defaulting to `black` on next save
+
 ## v2.6.0 — Refactor & Housekeeping
 - Added `requirements.txt` listing production dependencies (Flask, gunicorn, packaging, kcc)
 - Fixed: `comics_raw/` added to `.gitignore` to prevent accidentally tracking dropped image files

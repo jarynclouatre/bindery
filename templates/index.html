@@ -94,44 +94,52 @@
                             {% for val, lbl in [
                                 ('K1','Kindle 1'),
                                 ('K2','Kindle 2'),
+                                ('K11','Kindle 11'),
                                 ('K34','Kindle Keyboard / Touch'),
-                                ('K578','Kindle 7th / 8th / 10th gen'),
+                                ('K57','Kindle 5 / 7'),
+                                ('K810','Kindle 8 / 10'),
+                                ('KDX','Kindle DX / DXG'),
                                 ('KPW','Kindle Paperwhite 1 / 2'),
-                                ('KPW3','Kindle Paperwhite 3 / 4'),
-                                ('KPW5','Kindle Paperwhite 5 / Signature'),
+                                ('KPW34','Kindle Paperwhite 3 / 4'),
+                                ('KPW5','Kindle Paperwhite 5 / Signature Edition'),
                                 ('KV','Kindle Voyage'),
-                                ('KO','Kindle Oasis 2 / 3'),
-                                ('KS','Kindle Scribe'),
-                                ('KDX','Kindle DX / DXG')
+                                ('KO','Kindle Oasis 2 / 3 / Paperwhite 12'),
+                                ('KCS','Kindle Colorsoft'),
+                                ('KS','Kindle Scribe 1 / 2'),
+                                ('KS3','Kindle Scribe 3'),
+                                ('KSCS','Kindle Scribe Colorsoft'),
+                                ('KS1860','Kindle 1860'),
+                                ('KS1920','Kindle 1920')
                             ] %}
                             <option value="{{ val }}" {% if config.kcc_profile == val %}selected{% endif %}>{{ lbl }}</option>
                             {% endfor %}
                         </optgroup>
                         <optgroup label="Kobo">
                             {% for val, lbl in [
-                                ('KoM','Kobo Mini'),
-                                ('KoT','Kobo Touch'),
+                                ('KoMT','Kobo Mini / Touch'),
                                 ('KoG','Kobo Glo'),
                                 ('KoGHD','Kobo Glo HD'),
                                 ('KoA','Kobo Aura'),
                                 ('KoAHD','Kobo Aura HD'),
                                 ('KoAH2O','Kobo Aura H2O'),
                                 ('KoAO','Kobo Aura ONE'),
+                                ('KoN','Kobo Nia'),
                                 ('KoF','Kobo Forma'),
+                                ('KoS','Kobo Sage'),
                                 ('KoC','Kobo Clara HD / 2E'),
-                                ('KoCE','Kobo Clara Colour'),
+                                ('KoCC','Kobo Clara Colour'),
                                 ('KoL','Kobo Libra H2O / 2'),
                                 ('KoLC','Kobo Libra Colour'),
-                                ('KoE','Kobo Elipsa'),
-                                ('KoE2','Kobo Elipsa 2E')
+                                ('KoE','Kobo Elipsa')
                             ] %}
                             <option value="{{ val }}" {% if config.kcc_profile == val %}selected{% endif %}>{{ lbl }}</option>
                             {% endfor %}
                         </optgroup>
                         <optgroup label="reMarkable">
-                            <option value="Rmk1"  {% if config.kcc_profile == 'Rmk1'  %}selected{% endif %}>reMarkable 1</option>
-                            <option value="Rmk2"  {% if config.kcc_profile == 'Rmk2'  %}selected{% endif %}>reMarkable 2</option>
-                            <option value="RmkPP" {% if config.kcc_profile == 'RmkPP' %}selected{% endif %}>reMarkable Paper Pro</option>
+                            <option value="Rmk1"      {% if config.kcc_profile == 'Rmk1'      %}selected{% endif %}>reMarkable 1</option>
+                            <option value="Rmk2"      {% if config.kcc_profile == 'Rmk2'      %}selected{% endif %}>reMarkable 2</option>
+                            <option value="RmkPP"     {% if config.kcc_profile == 'RmkPP'     %}selected{% endif %}>reMarkable Paper Pro</option>
+                            <option value="RmkPPMove" {% if config.kcc_profile == 'RmkPPMove' %}selected{% endif %}>reMarkable Paper Pro Move</option>
                         </optgroup>
                         <optgroup label="Other">
                             <option value="OTHER" {% if config.kcc_profile == 'OTHER' %}selected{% endif %}>Generic / Custom resolution</option>
@@ -265,21 +273,13 @@
                 </div>
 
                 <div class="sec">Borders</div>
-                <div class="checks">
-                    <label class="check">
-                        <input type="checkbox" name="kcc_blackborders" {% if config.kcc_blackborders %}checked{% endif %}>
-                        <span>
-                            <div class="check-label">Black Borders</div>
-                            <div class="check-hint">Fill unused screen area with black</div>
-                        </span>
-                    </label>
-                    <label class="check">
-                        <input type="checkbox" name="kcc_whiteborders" {% if config.kcc_whiteborders %}checked{% endif %}>
-                        <span>
-                            <div class="check-label">White Borders</div>
-                            <div class="check-hint">Fill unused screen area with white (overrides black borders)</div>
-                        </span>
-                    </label>
+                <div class="field">
+                    <label class="lbl">Border Fill</label>
+                    <select name="kcc_borders">
+                        <option value="none"  {% if config.kcc_borders == 'none'  %}selected{% endif %}>None</option>
+                        <option value="black" {% if config.kcc_borders == 'black' %}selected{% endif %}>Black</option>
+                        <option value="white" {% if config.kcc_borders == 'white' %}selected{% endif %}>White</option>
+                    </select>
                 </div>
             </div>
 

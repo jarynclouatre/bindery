@@ -129,8 +129,7 @@ Note: Some Page Layout settings have priority over others. For example, enabling
 
 | Setting | Default | Notes |
 |---------|---------|-------|
-| Black Borders | **on** | Fills unused screen area with black |
-| White Borders | off | Fills unused screen area with white (overrides black borders) |
+| Border Fill | `black` | Fill unused screen area (`none`, `black`, or `white`) |
 
 ### Color and Quality
 
