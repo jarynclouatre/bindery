@@ -348,7 +348,7 @@
                            value="{{ config.kcc_author }}">
                 </div>
 
-                <div class="sec">Custom Profile Resolution</div>
+                <div class="sec" id="custom_sec">Custom Profile Resolution</div>
                 <p class="note" id="custom_note">Only used when profile is set to Generic / Custom.</p>
                 <div class="field" id="custom_width">
                     <label class="lbl">Custom Width (px)</label>
@@ -392,6 +392,7 @@
     function toggleCustomFields() {
         var isOther = document.getElementById('kcc_profile').value === 'OTHER';
         var display = isOther ? '' : 'none';
+        document.getElementById('custom_sec').style.display    = display;
         document.getElementById('custom_note').style.display   = display;
         document.getElementById('custom_width').style.display  = display;
         document.getElementById('custom_height').style.display = display;
