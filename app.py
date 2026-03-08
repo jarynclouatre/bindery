@@ -1,11 +1,14 @@
 """Flask application factory, WebUI routes, and form validation."""
 
+import os
+import signal
+import time
 import threading
 from flask import Flask, jsonify, request, render_template
 
 from config import DEFAULT_CONFIG, load_config, save_config, ConfigDict
-from processor import LOG_BUFFER, log_lock, log, watch_loop, _load_log_history
-from raw_processor import raw_watch_loop
+from processor import LOG_BUFFER, log_lock, log, watch_loop, inotify_watch_loop, _load_log_history
+from raw_processor import raw_watch_loop, raw_inotify_watch_loop
 
 VERSION = "2.7.1"
 
@@ -57,6 +60,9 @@ def _validate_post(config: ConfigDict) -> ConfigDict:
     except (ValueError, TypeError):
         config['file_wait_timeout'] = 60
 
+    if config.get('watcher_mode') not in ('poll', 'inotify'):
+        config['watcher_mode'] = 'poll'
+
     return config
 
 
@@ -72,6 +78,14 @@ def create_app(start_threads: bool = True) -> Flask:
         with log_lock:
             logs = list(LOG_BUFFER)
         return jsonify({'logs': logs})
+
+    @app.route('/api/restart', methods=['POST'])
+    def api_restart():
+        def _shutdown() -> None:
+            time.sleep(0.5)
+            os.kill(os.getpid(), signal.SIGTERM)
+        threading.Thread(target=_shutdown, daemon=True).start()
+        return jsonify({'status': 'restarting'})
 
     @app.route('/', methods=['GET', 'POST'])
     def index():
@@ -90,6 +104,7 @@ def create_app(start_threads: bool = True) -> Flask:
                 config[key] = key in request.form
             config['file_wait_timeout'] = request.form.get(
                 'file_wait_timeout', DEFAULT_CONFIG.get('file_wait_timeout', 60))
+            config['watcher_mode'] = request.form.get('watcher_mode', 'poll')
             config = _validate_post(config)
             save_config(config)
             saved = True
@@ -104,9 +119,15 @@ def create_app(start_threads: bool = True) -> Flask:
     # they would be killed on fork, and the worker would run with dead watchers.
     if start_threads:
         _load_log_history()
-        log(">>> Bindery started. Watching /Books_in, /Comics_in, and /Comics_raw every 10s.")
-        threading.Thread(target=watch_loop, daemon=True).start()
-        threading.Thread(target=raw_watch_loop, daemon=True).start()
+        _mode = load_config().get('watcher_mode', 'poll')
+        if _mode == 'inotify':
+            log(">>> Bindery started. Watching /Books_in, /Comics_in, and /Comics_raw via inotify.")
+            threading.Thread(target=inotify_watch_loop,     daemon=True).start()
+            threading.Thread(target=raw_inotify_watch_loop, daemon=True).start()
+        else:
+            log(">>> Bindery started. Watching /Books_in, /Comics_in, and /Comics_raw every 10s.")
+            threading.Thread(target=watch_loop,     daemon=True).start()
+            threading.Thread(target=raw_watch_loop, daemon=True).start()
 
     return app
 

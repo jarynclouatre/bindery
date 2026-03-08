@@ -166,3 +166,40 @@ def raw_watch_loop() -> None:
         except Exception as e:
             log(f">>> RAW SCAN ERROR: {e}")
         time.sleep(10)
+
+
+def raw_inotify_watch_loop() -> None:
+    """Inotify-based watcher for Comics_raw.
+
+    Triggers scan_raw_directories() immediately when anything appears in
+    Comics_raw. The 30-second stability check inside is_folder_stable still
+    runs on every trigger, so partially-transferred folders are never processed
+    early — inotify just removes the 10-second polling delay.
+    """
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+
+    class _RawHandler(FileSystemEventHandler):
+        def _trigger(self) -> None:
+            try:
+                scan_raw_directories()
+            except Exception as e:
+                log(f">>> RAW SCAN ERROR: {e}")
+
+        def on_created(self, event) -> None:  # type: ignore[override]
+            self._trigger()
+
+        def on_moved(self, event) -> None:  # type: ignore[override]
+            self._trigger()
+
+    observer = Observer()
+    observer.schedule(_RawHandler(), COMICS_RAW, recursive=True)
+    observer.start()
+    try:
+        while True:
+            time.sleep(1)
+    except Exception:
+        pass
+    finally:
+        observer.stop()
+        observer.join()

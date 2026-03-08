@@ -69,6 +69,21 @@
         .log-cmd  { color: #4a4a4a; }
         .log-info { color: #a0a0a0; }
         .note { font-size: .74rem; color: #444; margin-bottom: 10px; line-height: 1.5; }
+        .alert-warn { background: #1e1a0e; border: 1px solid #5a4a10; color: #c9a840;
+                      border-radius: 6px; padding: 10px 14px; margin-top: 14px;
+                      font-size: .88rem; line-height: 1.5; display: none; }
+        .btn-restart { display: inline-block; padding: 9px 18px; margin-top: 10px;
+                       background: #c9a840; color: #0a0a0a; border: none; border-radius: 6px;
+                       font-size: .88rem; font-weight: 700; cursor: pointer;
+                       transition: background .15s; }
+        .btn-restart:hover { background: #a88830; }
+        #restart-overlay { display: none; position: fixed; inset: 0;
+                           background: rgba(0,0,0,.8); z-index: 999;
+                           align-items: center; justify-content: center; }
+        #restart-overlay.show { display: flex; }
+        .restart-box { background: #1c1c1c; border: 1px solid #363636; border-radius: 10px;
+                       padding: 32px 40px; text-align: center; color: #e0e0e0; }
+        .restart-box p { margin-top: 10px; font-size: .88rem; color: #777; }
         optgroup { background: #1c1c1c; }
         option   { background: #222; color: #e0e0e0; }
     </style>
@@ -370,12 +385,35 @@
     </div>
     <div class="card">
         <h2>Bindery Settings</h2>
-        <div class="field" style="max-width:220px">
-            <label class="lbl">File Stability Timeout (s)</label>
-            <input type="number" name="file_wait_timeout"
-                   min="10" max="300" step="1"
-                   value="{{ config.file_wait_timeout }}">
+        <div class="grid-3">
+            <div>
+                <div class="field">
+                    <label class="lbl">Watcher Mode</label>
+                    <select name="watcher_mode" id="watcher_mode">
+                        <option value="poll"    {% if config.watcher_mode == "poll"    %}selected{% endif %}>Poll (every 10 s)</option>
+                        <option value="inotify" {% if config.watcher_mode == "inotify" %}selected{% endif %}>inotify (instant, local filesystems only)</option>
+                    </select>
+                </div>
+                <p class="note">Poll works everywhere including network shares (NFS, SMB). inotify is instant but only works on local filesystems — files on network mounts will be silently missed.</p>
+            </div>
+            <div>
+                <div class="field">
+                    <label class="lbl">File Stability Timeout (s)</label>
+                    <input type="number" name="file_wait_timeout"
+                           min="10" max="300" step="1"
+                           value="{{ config.file_wait_timeout }}">
+                </div>
+                <p class="note">How long to wait for a file to finish transferring before skipping it. Increase for slow network drives. Range: 10–300 s.</p>
+            </div>
         </div>
+        <div class="alert-warn" id="inotify-warn">
+            <strong>inotify requires a container restart to take effect.</strong><br>
+            Not supported on network shares (NFS, SMB/CIFS) — files on those mounts will be silently missed.
+            Most SFTP clients that use temp-then-rename (e.g. WinSCP) work correctly;
+            direct-write clients may miss events. Save your settings first, then restart.
+            <br><button type="button" class="btn-restart" id="restart-btn">Restart Container</button>
+        </div>
+    </div>
         <p class="note">How long Bindery waits for a file to finish transferring before skipping it. Increase if files on slow network drives are frequently skipped. Range: 10–300 s.</p>
     </div>
     </form>
@@ -394,6 +432,13 @@
         </div>
     </div>
 
+</div>
+
+<div id="restart-overlay">
+    <div class="restart-box">
+        <div style="font-size:1.1rem;font-weight:700;color:#5aabff">Restarting…</div>
+        <p>The container is restarting. This page will reload automatically.</p>
+    </div>
 </div>
 <script>
     var lb = document.getElementById('logbox');
@@ -422,6 +467,27 @@
         }).catch(function(){});
     }
     setInterval(pollLogs, 5000);
+
+    function toggleInotifyWarn() {
+        var sel = document.getElementById('watcher_mode');
+        document.getElementById('inotify-warn').style.display =
+            sel && sel.value === 'inotify' ? 'block' : 'none';
+    }
+    var wmSel = document.getElementById('watcher_mode');
+    if (wmSel) { wmSel.addEventListener('change', toggleInotifyWarn); toggleInotifyWarn(); }
+
+    var restartBtn = document.getElementById('restart-btn');
+    if (restartBtn) {
+        restartBtn.addEventListener('click', function() {
+            document.getElementById('restart-overlay').classList.add('show');
+            fetch('/api/restart', {method: 'POST'}).catch(function(){});
+            var iv = setInterval(function() {
+                fetch('/health').then(function(r) {
+                    if (r.ok) { clearInterval(iv); window.location.reload(); }
+                }).catch(function(){});
+            }, 2000);
+        });
+    }
 
     function toggleCustomFields() {
         var isOther = document.getElementById('kcc_profile').value === 'OTHER';

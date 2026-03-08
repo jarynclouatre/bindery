@@ -2,3 +2,4 @@ Flask
 gunicorn
 packaging
 git+https://github.com/ciromattia/kcc.git@v9.4.3
+watchdog

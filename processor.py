@@ -281,3 +281,59 @@ def watch_loop() -> None:
         except Exception as e:
             log(f">>> SCAN ERROR: {e}")
         time.sleep(10)
+
+
+def inotify_watch_loop() -> None:
+    """Inotify-based watcher for Books_in and Comics_in.
+
+    Uses watchdog's Observer (inotify on Linux). Dispatches process_file on
+    FileCreatedEvent and FileMovedEvent, so both direct writes and
+    temp-file-then-rename patterns (e.g. WinSCP) are handled correctly.
+    wait_for_file_ready still runs inside process_file, so partial writes
+    from direct-write clients are tolerated.
+
+    NOTE: inotify only fires for local filesystems. NFS, SMB/CIFS, and most
+    SFTP mounts will not generate events — use poll mode for those setups.
+    """
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+
+    class _Handler(FileSystemEventHandler):
+        def __init__(self, c_type: str) -> None:
+            self.c_type = c_type
+            self.exts   = BOOK_EXTS if c_type == 'book' else COMIC_EXTS
+
+        def _maybe_dispatch(self, path: str) -> None:
+            if os.path.splitext(path)[1].lower() not in self.exts:
+                return
+            if path.endswith('.failed'):
+                return
+            with lock_mutex:
+                if path not in PROCESSING_LOCKS:
+                    PROCESSING_LOCKS.add(path)
+                    threading.Thread(
+                        target=process_file,
+                        args=(path, self.c_type),
+                        daemon=True,
+                    ).start()
+
+        def on_created(self, event) -> None:  # type: ignore[override]
+            if not event.is_directory:
+                self._maybe_dispatch(event.src_path)
+
+        def on_moved(self, event) -> None:  # type: ignore[override]
+            if not event.is_directory:
+                self._maybe_dispatch(event.dest_path)
+
+    observer = Observer()
+    observer.schedule(_Handler('book'),  BOOKS_IN,  recursive=True)
+    observer.schedule(_Handler('comic'), COMICS_IN, recursive=True)
+    observer.start()
+    try:
+        while True:
+            time.sleep(1)
+    except Exception:
+        pass
+    finally:
+        observer.stop()
+        observer.join()

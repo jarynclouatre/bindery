@@ -138,3 +138,27 @@ def test_validate_post_file_wait_timeout_clamped(client, tmp_path):
         })
         saved = __import__('json').loads(config_file.read_text())
     assert saved['file_wait_timeout'] == 300
+
+
+def test_validate_post_watcher_mode_invalid(client, tmp_path):
+    import config as cfg
+    config_file = tmp_path / 'settings.json'
+    with __import__('unittest.mock', fromlist=['patch']).patch.object(cfg, 'CONFIG_FILE', str(config_file)), \
+         __import__('unittest.mock', fromlist=['patch']).patch.object(cfg, 'CONFIG_DIR', str(tmp_path)):
+        client.post('/', data={
+            'kcc_profile': 'KPW5', 'kcc_format': 'EPUB', 'kcc_cropping': '2',
+            'kcc_croppingpower': '1.0', 'kcc_croppingminimum': '1',
+            'kcc_splitter': '1', 'kcc_gamma': '0', 'kcc_batchsplit': '0',
+            'kcc_borders': 'black', 'kcc_author': '', 'kcc_customwidth': '',
+            'kcc_customheight': '', 'watcher_mode': 'hacked',
+        })
+        saved = __import__('json').loads(config_file.read_text())
+    assert saved['watcher_mode'] == 'poll'
+
+
+def test_api_restart_returns_json(client):
+    from unittest.mock import patch
+    with patch('app.os.kill') as mock_kill:
+        resp = client.post('/api/restart')
+    assert resp.status_code == 200
+    assert __import__('json').loads(resp.data) == {'status': 'restarting'}

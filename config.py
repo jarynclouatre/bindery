@@ -37,6 +37,7 @@ DEFAULT_CONFIG: ConfigDict = {
     'kcc_customwidth':       '',
     'kcc_customheight':      '',
     'file_wait_timeout':     60,
+    'watcher_mode':          'poll',
 }
 
 _config_lock = threading.Lock()
