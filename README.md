@@ -159,9 +159,18 @@ Only used when the Device Profile is set to **Generic / Custom**.
 
 ---
 
+## Bindery Settings
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| Watcher Mode | `poll` | `poll` scans every 10 s and works everywhere including NFS/SMB. `inotify` detects files instantly but only works on local filesystems — files on network mounts will be silently missed. Requires a container restart to take effect. |
+| File Stability Timeout | `60` s | How long Bindery waits for a file to finish transferring before skipping it. Increase if files on slow network drives are frequently skipped. Range: 10–300 s. |
+
+---
+
 ## Behaviour
 
-- The scanner polls `/Books_in`, `/Comics_in` and `/Comics_raw` every **10 seconds** (polling is used over inotify to ensure compatibility with NAS network drives).
+- Bindery watches `/Books_in`, `/Comics_in` and `/Comics_raw` using either **poll** mode (every 10 s, NAS/SMB/NFS compatible) or **inotify** mode (instant, local filesystems only). Watcher mode is configurable in the WebUI under Bindery Settings.
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
 - On success: converted file is moved to the output folder, source file is deleted.
 - On failure: source file is renamed to `<filename>.failed` so it is not retried in a loop.
