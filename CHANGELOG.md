@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.8.1 — Project Structure Cleanup
+
+- Fixed: Dockerfile was hardcoding pip dependencies instead of installing from `requirements.txt`; now uses `COPY requirements.txt` + `pip install -r` for proper layer caching
+- Fixed: CI workflow hardcoded `pip install flask pytest` instead of using `requirements-dev.txt`
+- Fixed: `requirements-dev.txt` only contained `pytest` — added `flask` and `watchdog` so it reflects what tests actually need
+- Added: `pyproject.toml` with project metadata and pytest configuration (`testpaths = ["tests"]`)
+
 ## v2.8.0 — inotify Watcher Mode & WebUI Improvements
 
 - Added: inotify watcher mode — instant file detection on local filesystems; poll remains the default and works everywhere including network shares (NFS, SMB)

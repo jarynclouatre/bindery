@@ -37,7 +37,8 @@ RUN set -eux; \
 RUN ln -sf /usr/bin/7z /usr/local/bin/7za \
  && ln -sf /usr/bin/7z /usr/local/bin/7zr || true
 
-RUN pip install --no-cache-dir Flask packaging gunicorn watchdog "git+https://github.com/ciromattia/kcc.git@v9.4.3"
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 RUN mkdir -p /app /app/config /Comics_in /Comics_out /Books_in /Books_out /Comics_raw
 
