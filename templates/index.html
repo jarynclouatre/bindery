@@ -69,6 +69,13 @@
         .log-cmd  { color: #4a4a4a; }
         .log-info { color: #a0a0a0; }
         .note { font-size: .74rem; color: #444; margin-bottom: 10px; line-height: 1.5; }
+        .logo-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+        .logo-icon { width: 48px; height: 48px; flex-shrink: 0; }
+        .logo-text h1 { font-size: 2rem; font-family: Georgia, 'Times New Roman', serif;
+                        color: #e8e8e8; letter-spacing: .01em; margin-bottom: 2px; }
+        .logo-text .tagline { font-size: .68rem; color: #555; letter-spacing: .18em;
+                              text-transform: uppercase; font-weight: 600; }
+        .logo-text .submode { font-size: .75rem; color: #444; margin-top: 2px; }
         .alert-warn { background: #1e1a0e; border: 1px solid #5a4a10; color: #c9a840;
                       border-radius: 6px; padding: 10px 14px; margin-top: 14px;
                       font-size: .88rem; line-height: 1.5; display: none; }
@@ -91,10 +98,22 @@
 <body>
 <div class="wrap">
 
-    <h1>Bindery</h1>
-    <div class="version">v{{ version }}</div>
-    <p class="subtitle">Automated e-book and comic converter —
-    {% if config.watcher_mode == "inotify" %}watching via inotify{% else %}scanning every 10 seconds{% endif %}</p>
+    <div class="logo-wrap">
+        <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+            <rect width="100" height="100" rx="20" fill="#141414"/>
+            <rect x="14" y="7" width="54" height="68" rx="6" fill="#5aabff"/>
+            <rect x="14" y="7" width="8" height="68" rx="4" fill="#3d8fe0"/>
+            <rect x="28" y="22" width="30" height="4" rx="2" fill="#1a3a5c"/>
+            <rect x="28" y="32" width="24" height="4" rx="2" fill="#1a3a5c"/>
+            <rect x="28" y="42" width="27" height="4" rx="2" fill="#1a3a5c"/>
+        </svg>
+        <div class="logo-text">
+            <h1>Bindery</h1>
+            <div class="tagline">Ebook &amp; Comic Converter</div>
+            <div class="submode">v{{ version }} &mdash;
+            {% if config.watcher_mode == "inotify" %}watching via inotify{% else %}scanning every 10 seconds{% endif %}</div>
+        </div>
+    </div>
 
     {% if saved %}<div class="alert">Settings saved successfully.</div>{% endif %}
 
