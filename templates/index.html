@@ -501,7 +501,7 @@
     function toggleInotifyWarn() {
         var sel = document.getElementById('watcher_mode');
         var selected = sel ? sel.value : '';
-        var needsRestart = selected === 'inotify' || activeModeAtLoad === 'inotify';
+        var needsRestart = selected !== activeModeAtLoad;
         document.getElementById('inotify-warn').style.display = needsRestart ? 'block' : 'none';
     }
     var wmSel = document.getElementById('watcher_mode');
