@@ -192,6 +192,7 @@ def raw_inotify_watch_loop() -> None:
         def on_moved(self, event) -> None:  # type: ignore[override]
             self._trigger()
 
+    scan_raw_directories()
     observer = Observer()
     observer.schedule(_RawHandler(), COMICS_RAW, recursive=True)
     observer.start()

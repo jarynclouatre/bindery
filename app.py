@@ -10,7 +10,7 @@ from config import DEFAULT_CONFIG, load_config, save_config, ConfigDict
 from processor import LOG_BUFFER, log_lock, log, watch_loop, inotify_watch_loop, _load_log_history
 from raw_processor import raw_watch_loop, raw_inotify_watch_loop
 
-VERSION = "2.8.1"
+VERSION = "2.8.2"
 
 
 def _clamp(value: object, min_val: float, max_val: float, default: float) -> str:

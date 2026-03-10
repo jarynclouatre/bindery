@@ -325,6 +325,7 @@ def inotify_watch_loop() -> None:
             if not event.is_directory:
                 self._maybe_dispatch(event.dest_path)
 
+    scan_directories()
     observer = Observer()
     observer.schedule(_Handler('book'),  BOOKS_IN,  recursive=True)
     observer.schedule(_Handler('comic'), COMICS_IN, recursive=True)

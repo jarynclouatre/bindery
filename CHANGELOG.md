@@ -1,3 +1,7 @@
+## v2.8.2 — Inotify Initial Scan Fix
+
+- Fixed: inotify watcher mode did not scan existing files on startup — files already sitting in Comics_in, Books_in, or Comics_raw when the container started were silently ignored; an initial scan now runs before the observer starts
+
 # Changelog
 
 ## v2.8.1 — Project Structure Cleanup
