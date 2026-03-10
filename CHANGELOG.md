@@ -1,4 +1,4 @@
-## Unreleased — v3.0.0
+## v3.0.0 — Status, File Browser & Notifications
 
 - Added: Processing Status card — live table showing every job (queued / processing / success / failed) with timestamps, duration, and a Retry button for failed files; persisted across restarts in `/app/config/jobs.json` (capped at 500 entries)
 - Added: File Browser card — browse and download files from Books_out and Comics_out directly from the UI; no Samba or SSH required
