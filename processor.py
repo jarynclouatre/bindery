@@ -203,21 +203,33 @@ def retry_file(job_id: str) -> bool:
 def wait_for_file_ready(filepath: str, timeout: int = 60) -> bool:
     """Poll until the file size stabilises, indicating the transfer is complete.
 
-    Polls every 2s for up to 60s (30 attempts). Returns False on timeout; the
-    caller logs SKIP and leaves the source untouched so it retries next scan.
-    Only definitive failures rename to .failed.
+    Polls every 2s for up to `timeout` seconds. Requires STABLE_NEEDED
+    consecutive identical non-zero size readings before declaring the file
+    ready. A single 2-second stable window is not enough — copy tools like
+    FileBrowser pause briefly between write chunks, which fools a one-shot
+    stability check into processing a still-incomplete file.
+
+    Returns False on timeout; the caller logs SKIP and leaves the source
+    untouched so it retries next scan. Only definitive failures rename to
+    .failed.
     """
-    last_size = -1
+    STABLE_NEEDED = 3  # require ~6 s of stable size before processing
+    last_size    = -1
+    stable_count =  0
     for _ in range(max(1, (timeout + 1) // 2)):
         try:
             if not os.path.exists(filepath):
                 return False
             size = os.path.getsize(filepath)
             if size > 0 and size == last_size:
-                return True
-            last_size = size
+                stable_count += 1
+                if stable_count >= STABLE_NEEDED:
+                    return True
+            else:
+                stable_count = 0
+                last_size = size
         except OSError:
-            pass
+            stable_count = 0
         time.sleep(2)
     return False
 
@@ -477,6 +489,17 @@ def inotify_watch_loop() -> None:
                     ).start()
 
         def on_created(self, event) -> None:  # type: ignore[override]
+            # on_created fires as soon as the file appears, before data is
+            # written. Still handle it so wait_for_file_ready can do its
+            # stability check, but on_closed is the more reliable signal.
+            if not event.is_directory:
+                self._maybe_dispatch(event.src_path)
+
+        def on_closed(self, event) -> None:  # type: ignore[override]
+            # Fires on IN_CLOSE_WRITE — the write handle was closed, meaning
+            # the transfer is complete. This is the definitive signal for
+            # direct-write clients like FileBrowser. PROCESSING_LOCKS prevents
+            # double-dispatch if on_created already queued a thread.
             if not event.is_directory:
                 self._maybe_dispatch(event.src_path)
 

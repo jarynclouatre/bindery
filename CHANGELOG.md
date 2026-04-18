@@ -1,5 +1,22 @@
 ## v3.0.1 — Bug Fixes & Housekeeping
 
+## [3.0.2] - 2026-04-18
+
+### Fixed
+- **Premature processing of in-progress file transfers** (`processor.py`):
+  `wait_for_file_ready` previously required only a single 2-second stable-size
+  window before passing a file to the converter. Copy tools such as FileBrowser
+  pause briefly between write chunks; if that pause coincided with the 2-second
+  poll interval, Bindery would start converting a partial file, fail, and rename
+  it to `.failed` — leaving FileBrowser unable to finish writing to the original
+  path. The fix requires **three** consecutive stable readings (~6 s) before a
+  file is considered ready.
+- **inotify mode — added `on_closed` handler**: `IN_CLOSE_WRITE` (watchdog
+  `on_closed`) is now handled in addition to `on_created`. This fires only after
+  the writing process closes the file handle, providing a definitive "transfer
+  complete" signal for direct-write clients in inotify mode.
+
+
 - Fixed: `entrypoint.sh` crashed on startup when `PUID`/`PGID` matched an existing system UID/GID — added `--non-unique` to `groupadd` and `useradd`
 - Fixed: `wait_for_file_ready` waited up to 2 s less than configured on odd timeout values — loop count now uses ceiling division
 - Fixed: `_notify` used hardcoded `True` fallbacks instead of `DEFAULT_CONFIG` values — now consistent if defaults ever change
