@@ -1,3 +1,7 @@
+## v3.1.1 — Skip Dot-Folders
+
+- Fixed: Bindery was scanning inside dot-folders (`.stfolder`, `.stversions`, etc.) — any directory whose name starts with `.` is now skipped universally in both poll and inotify modes; covers Syncthing and any other tool that creates hidden directories inside watched folders
+
 ## v3.1.0 — Preserve Originals
 
 - Added: **Preserve Originals** toggle in Bindery Settings — when enabled, source files in `Comics_in` are moved to `Comics_in/.archive` (mirroring subfolder structure) after a successful conversion instead of being deleted; `.archive` is never scanned or reprocessed

@@ -430,7 +430,8 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
 
 
 def scan_directories() -> None:
-    for root, _, files in os.walk(BOOKS_IN):
+    for root, dirs, files in os.walk(BOOKS_IN):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
         for f in files:
             if os.path.splitext(f)[1].lower() in BOOK_EXTS and not f.endswith('.failed'):
                 path = os.path.join(root, f)
@@ -441,7 +442,7 @@ def scan_directories() -> None:
                                          args=(path, 'book'), daemon=True).start()
 
     for root, dirs, files in os.walk(COMICS_IN):
-        dirs[:] = [d for d in dirs if not (root == COMICS_IN and d == '.archive')]
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
         for f in files:
             if os.path.splitext(f)[1].lower() in COMIC_EXTS and not f.endswith('.failed'):
                 path = os.path.join(root, f)
@@ -486,7 +487,7 @@ def inotify_watch_loop() -> None:
                 return
             if path.endswith('.failed'):
                 return
-            if self.c_type == 'comic' and path.startswith(COMICS_ARCHIVE + os.sep):
+            if any(part.startswith('.') for part in path.split(os.sep) if part):
                 return
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:

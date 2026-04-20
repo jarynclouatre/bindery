@@ -423,3 +423,22 @@ def test_process_file_preserve_originals(tmp_path):
 
     assert not src.exists(), 'source should not remain in comics_in'
     assert (comics_archive / 'test.cbz').exists(), 'source should be in .archive'
+
+
+def test_scan_directories_skips_dot_folders(tmp_path):
+    """Any dot-folder (e.g. .stfolder, .stversions) must be skipped, not just .archive."""
+    comics_in  = tmp_path / 'comics_in'
+    books_in   = tmp_path / 'books_in'
+    stfolder   = comics_in / '.stfolder'
+    comics_in.mkdir()
+    books_in.mkdir()
+    stfolder.mkdir()
+    (stfolder / 'test.cbz').write_bytes(b'x')
+
+    with patch.object(processor, 'COMICS_IN', str(comics_in)), \
+         patch.object(processor, 'BOOKS_IN',  str(books_in)), \
+         patch('processor.threading') as mock_threading:
+        processor.PROCESSING_LOCKS.clear()
+        processor.scan_directories()
+
+    mock_threading.Thread.assert_not_called()
