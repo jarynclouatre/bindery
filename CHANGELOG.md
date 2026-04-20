@@ -19,7 +19,6 @@
   the writing process closes the file handle, providing a definitive "transfer
   complete" signal for direct-write clients in inotify mode.
 
-
 - Fixed: `entrypoint.sh` crashed on startup when `PUID`/`PGID` matched an existing system UID/GID — added `--non-unique` to `groupadd` and `useradd`
 - Fixed: `wait_for_file_ready` waited up to 2 s less than configured on odd timeout values — loop count now uses ceiling division
 - Fixed: `_notify` used hardcoded `True` fallbacks instead of `DEFAULT_CONFIG` values — now consistent if defaults ever change
@@ -44,7 +43,6 @@
 ## v2.8.2 — Inotify Initial Scan Fix
 
 - Fixed: inotify watcher mode did not scan existing files on startup — files already sitting in Comics_in, Books_in, or Comics_raw when the container started were silently ignored; an initial scan now runs before the observer starts
-
 
 ## v2.8.1 — Bug Fixes & Project Structure
 
@@ -76,7 +74,6 @@
 - Fixed: Output Metadata checks div used an inline `margin-bottom` — replaced with `.checks-spaced` class
 - Improved: Custom Profile Resolution fields (width, height, note) are now hidden unless Generic / Custom profile is selected
 - Improved: KCC log no longer emits a redundant STARTING line before QUEUED — comics now log QUEUED then CMD
-
 
 ## v2.7.0 — Device Profiles & Borders Overhaul
 - Fixed: incorrect KCC profile keys — `K578` split into correct `K57` (Kindle 5/7) and `K810` (Kindle 8/10); `KPW3` corrected to `KPW34`; `KoM`+`KoT` merged to correct `KoMT` (Kobo Mini/Touch); `KoCE` corrected to `KoCC` (Kobo Clara Colour); removed `KoE2` (no KCC profile exists)
