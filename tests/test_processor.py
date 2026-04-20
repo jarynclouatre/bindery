@@ -376,3 +376,50 @@ def test_wait_for_file_ready_oserror_resets_counter(tmp_path):
     with patch("processor.os.path.getsize", side_effect=sizes), \
          patch("processor.time.sleep"):
         assert processor.wait_for_file_ready(str(f), timeout=60) is True
+
+
+# ── preserve_originals / .archive ─────────────────────────────────────────────
+
+def test_scan_directories_skips_archive(tmp_path):
+    """Files inside .archive must never be dispatched for conversion."""
+    comics_in = tmp_path / 'comics_in'
+    books_in  = tmp_path / 'books_in'
+    archive   = comics_in / '.archive'
+    comics_in.mkdir()
+    books_in.mkdir()
+    archive.mkdir()
+    (archive / 'test.cbz').write_bytes(b'x')
+
+    with patch.object(processor, 'COMICS_IN', str(comics_in)), \
+         patch.object(processor, 'BOOKS_IN',  str(books_in)), \
+         patch('processor.threading') as mock_threading:
+        processor.PROCESSING_LOCKS.clear()
+        processor.scan_directories()
+
+    mock_threading.Thread.assert_not_called()
+
+
+def test_process_file_preserve_originals(tmp_path):
+    """With preserve_originals=True, source file moves to .archive (mirroring
+    subfolder structure) instead of being deleted."""
+    comics_in      = tmp_path / 'comics_in'
+    comics_archive = comics_in / '.archive'
+    comics_in.mkdir()
+    src = comics_in / 'test.cbz'
+    src.write_bytes(b'fake cbz')
+
+    mock_config = dict(DEFAULT_CONFIG)
+    mock_config['preserve_originals'] = True
+
+    with patch.object(processor, 'COMICS_IN',       str(comics_in)), \
+         patch.object(processor, 'COMICS_OUT',      str(tmp_path / 'comics_out')), \
+         patch.object(processor, 'COMICS_ARCHIVE',  str(comics_archive)), \
+         patch('processor.load_config',        return_value=mock_config), \
+         patch('processor.wait_for_file_ready', return_value=True), \
+         patch('processor._run_conversion',     return_value=None), \
+         patch('processor.get_output_files',    return_value=[str(tmp_path / 'fake.epub')]), \
+         patch('processor.move_output_file',    return_value=None):
+        processor.process_file(str(src), 'comic')
+
+    assert not src.exists(), 'source should not remain in comics_in'
+    assert (comics_archive / 'test.cbz').exists(), 'source should be in .archive'
