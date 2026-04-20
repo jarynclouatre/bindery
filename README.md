@@ -40,6 +40,7 @@ bindery/
 ├── books_in/        ← drop .epub files here (Kobo users only)
 ├── books_out/       ← converted .kepub files appear here
 ├── comics_in/       ← drop .cbz / .cbr / .zip / .rar here
+│   └── .archive/   ← originals preserved here when Preserve Originals is enabled
 ├── comics_out/      ← converted files appear here
 ├── comics_raw/      ← drop a flat folder of images here; Bindery zips it to CBZ and processes it automatically
 │   ├── processed/   ← original image folders moved here on success
@@ -47,7 +48,7 @@ bindery/
 └── config/          ← settings.json and jobs.json persisted here
 ```
 
-All folders are created automatically on first run. Subfolders are preserved — a file at `comics_in/Marvel/issue01.cbz` will land at `comics_out/Marvel/issue01.epub`.
+All folders are created automatically on first run. Subfolder structure is preserved — a file at `comics_in/Marvel/issue01.cbz` will convert to `comics_out/Marvel/issue01.epub`. Books work the same way.
 
 ---
 
@@ -129,6 +130,7 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 | Watcher Mode | `poll` | `poll` scans every 10 s and works everywhere including NFS/SMB. `inotify` detects files instantly but only works on local filesystems — files on network mounts will be silently missed. Requires a container restart to take effect. |
 | File Stability Timeout | `60` s | How long Bindery waits for a file to finish transferring before skipping it. Increase for slow network drives. Range: 10–300 s. |
 | Notifications (Apprise) | *(blank)* | One Apprise service URL per line. Leave blank to disable notifications. See [Apprise docs](https://github.com/caronc/apprise/wiki) for URL formats. |
+| Preserve Originals | disabled | When enabled, source comics are moved to `Comics_in/.archive` after a successful conversion instead of being deleted. Subdirectory structure is mirrored. Has no effect on book conversions. |
 
 ---
 
@@ -136,7 +138,8 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 
 - Bindery watches `/Books_in`, `/Comics_in` and `/Comics_raw` using either **poll** mode (every 10 s, NAS/SMB/NFS compatible) or **inotify** mode (instant, local filesystems only).
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
-- On success: converted file is moved to the output folder, source file is deleted.
+- Subfolder structure is preserved — a file at `Comics_in/Marvel/issue01.cbz` converts to `Comics_out/Marvel/issue01.epub`.
+- On success: converted file is moved to the output folder. Source file is deleted, or moved to `Comics_in/.archive` (mirroring subfolder structure) if **Preserve Originals** is enabled.
 - On failure: source file is renamed to `<filename>.failed` and will not be retried automatically. Use the Retry button in the WebUI to re-queue it.
 - Raw image folders in `Comics_raw` are held until stable (no file changes for 30 s) before processing begins.
 - Live logs are shown in the WebUI and streamed to `docker logs`.

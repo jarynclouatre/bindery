@@ -16,8 +16,8 @@ from config import DEFAULT_CONFIG, load_config, ConfigDict
 COMICS_IN      = '/Comics_in'
 COMICS_OUT     = '/Comics_out'
 COMICS_ARCHIVE = os.path.join(COMICS_IN, '.archive')
-BOOKS_IN   = '/Books_in'
-BOOKS_OUT  = '/Books_out'
+BOOKS_IN       = '/Books_in'
+BOOKS_OUT      = '/Books_out'
 
 BOOK_EXTS  = {'.epub'}
 COMIC_EXTS = {'.cbz', '.cbr', '.zip', '.rar'}
