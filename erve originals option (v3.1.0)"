@@ -1,0 +1,135 @@
+[1mdiff --git a/CHANGELOG.md b/CHANGELOG.md[m
+[1mindex 9ca88f7..d1d9fc2 100644[m
+[1m--- a/CHANGELOG.md[m
+[1m+++ b/CHANGELOG.md[m
+[36m@@ -1,8 +1,11 @@[m
+[31m-## v3.0.1 — Bug Fixes & Housekeeping[m
+[32m+[m[32m## v3.1.0 — Preserve Originals[m
+ [m
+[31m-## [3.0.2] - 2026-04-18[m
+[32m+[m[32m- Added: **Preserve Originals** toggle in Bindery Settings — when enabled, source files in `Comics_in` are moved to `Comics_in/.archive` (mirroring subfolder structure) after a successful conversion instead of being deleted; `.archive` is never scanned or reprocessed[m
+[32m+[m[32m- Fixed: `pyproject.toml` version was out of sync with app version (was `2.8.1`)[m
+[32m+[m[32m- Fixed: `CHANGELOG.md` had an empty `v3.0.1` heading and inconsistent entry format — standardised to `## vX.Y.Z — Description` throughout[m
+[32m+[m
+[32m+[m[32m## v3.0.2 — Bug Fixes & Housekeeping[m
+ [m
+[31m-### Fixed[m
+ - **Premature processing of in-progress file transfers** (`processor.py`):[m
+   `wait_for_file_ready` previously required only a single 2-second stable-size[m
+   window before passing a file to the converter. Copy tools such as FileBrowser[m
+[1mdiff --git a/app.py b/app.py[m
+[1mindex 012b7a5..f9e1d5b 100644[m
+[1m--- a/app.py[m
+[1m+++ b/app.py[m
+[36m@@ -16,7 +16,7 @@[m [mfrom processor import ([m
+ )[m
+ from raw_processor import raw_watch_loop, raw_inotify_watch_loop[m
+ [m
+[31m-VERSION = "3.0.2"[m
+[32m+[m[32mVERSION = "3.1.0"[m
+ [m
+ [m
+ def _clamp(value: object, min_val: float, max_val: float, default: float) -> str:[m
+[36m@@ -165,7 +165,8 @@[m [mdef create_app(start_threads: bool = True) -> Flask:[m
+                         'kcc_forcecolor', 'kcc_colorautocontrast', 'kcc_colorcurve',[m
+                         'kcc_stretch', 'kcc_upscale', 'kcc_nosplitrotate', 'kcc_rotate',[m
+                         'kcc_metadatatitle', 'kcc_nokepub',[m
+[31m-                        'notify_on_success', 'notify_on_failure'):[m
+[32m+[m[32m                        'notify_on_success', 'notify_on_failure',[m
+[32m+[m[32m                        'preserve_originals'):[m
+                 config[key] = key in request.form[m
+             config['file_wait_timeout'] = request.form.get([m
+                 'file_wait_timeout', DEFAULT_CONFIG.get('file_wait_timeout', 60))[m
+[1mdiff --git a/config.py b/config.py[m
+[1mindex 05cb93c..c665913 100644[m
+[1m--- a/config.py[m
+[1m+++ b/config.py[m
+[36m@@ -41,6 +41,7 @@[m [mDEFAULT_CONFIG: ConfigDict = {[m
+     'apprise_urls':          '',[m
+     'notify_on_success':     True,[m
+     'notify_on_failure':     True,[m
+[32m+[m[32m    'preserve_originals':    False,[m
+ }[m
+ [m
+ _config_lock = threading.Lock()[m
+[1mdiff --git a/processor.py b/processor.py[m
+[1mindex 58c9972..9c18558 100644[m
+[1m--- a/processor.py[m
+[1m+++ b/processor.py[m
+[36m@@ -13,8 +13,9 @@[m [mfrom datetime import datetime, timezone[m
+ [m
+ from config import DEFAULT_CONFIG, load_config, ConfigDict[m
+ [m
+[31m-COMICS_IN  = '/Comics_in'[m
+[31m-COMICS_OUT = '/Comics_out'[m
+[32m+[m[32mCOMICS_IN      = '/Comics_in'[m
+[32m+[m[32mCOMICS_OUT     = '/Comics_out'[m
+[32m+[m[32mCOMICS_ARCHIVE = os.path.join(COMICS_IN, '.archive')[m
+ BOOKS_IN   = '/Books_in'[m
+ BOOKS_OUT  = '/Books_out'[m
+ [m
+[36m@@ -389,7 +390,12 @@[m [mdef process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:[m
+             for f in produced:[m
+                 move_output_file(f, target_dir)[m
+             if os.path.exists(filepath):[m
+[31m-                os.remove(filepath)[m
+[32m+[m[32m                if c_type == 'comic' and config.get('preserve_originals', False):[m
+[32m+[m[32m                    _dest = os.path.join(COMICS_ARCHIVE, os.path.relpath(filepath, COMICS_IN))[m
+[32m+[m[32m                    os.makedirs(os.path.dirname(_dest), exist_ok=True)[m
+[32m+[m[32m                    shutil.move(filepath, _dest)[m
+[32m+[m[32m                else:[m
+[32m+[m[32m                    os.remove(filepath)[m
+                 prune_empty_dirs(filepath, in_base)[m
+             count  = len(produced)[m
+             suffix = 's' if count > 1 else ''[m
+[36m@@ -434,7 +440,8 @@[m [mdef scan_directories() -> None:[m
+                         threading.Thread(target=process_file,[m
+                                          args=(path, 'book'), daemon=True).start()[m
+ [m
+[31m-    for root, _, files in os.walk(COMICS_IN):[m
+[32m+[m[32m    for root, dirs, files in os.walk(COMICS_IN):[m
+[32m+[m[32m        dirs[:] = [d for d in dirs if not (root == COMICS_IN and d == '.archive')][m
+         for f in files:[m
+             if os.path.splitext(f)[1].lower() in COMIC_EXTS and not f.endswith('.failed'):[m
+                 path = os.path.join(root, f)[m
+[36m@@ -479,6 +486,8 @@[m [mdef inotify_watch_loop() -> None:[m
+                 return[m
+             if path.endswith('.failed'):[m
+                 return[m
+[32m+[m[32m            if self.c_type == 'comic' and path.startswith(COMICS_ARCHIVE + os.sep):[m
+[32m+[m[32m                return[m
+             with lock_mutex:[m
+                 if path not in PROCESSING_LOCKS:[m
+                     PROCESSING_LOCKS.add(path)[m
+[1mdiff --git a/pyproject.toml b/pyproject.toml[m
+[1mindex 1aab915..6c858c7 100644[m
+[1m--- a/pyproject.toml[m
+[1m+++ b/pyproject.toml[m
+[36m@@ -1,6 +1,6 @@[m
+ [project][m
+ name = "bindery"[m
+[31m-version = "2.8.1"[m
+[32m+[m[32mversion = "3.1.0"[m
+ description = "Self-hosted Docker e-book and comic converter"[m
+ requires-python = ">=3.12"[m
+ [m
+[1mdiff --git a/templates/index.html b/templates/index.html[m
+[1mindex c9d1003..58139cd 100644[m
+[1m--- a/templates/index.html[m
+[1m+++ b/templates/index.html[m
+[36m@@ -475,6 +475,15 @@[m
+                            value="{{ config.file_wait_timeout }}">[m
+                 </div>[m
+                 <p class="note">How long to wait for a file to finish transferring before skipping it. Increase for slow network drives. Range: 10–300 s.</p>[m
+[32m+[m[32m                <div class="checks" style="margin-top:14px">[m
+[32m+[m[32m                    <label class="check">[m
+[32m+[m[32m                        <input type="checkbox" name="preserve_originals" {% if config.preserve_originals %}checked{% endif %}>[m
+[32m+[m[32m                        <span>[m
+[32m+[m[32m                            <div class="check-label">Preserve Originals</div>[m
+[32m+[m[32m                            <div class="check-hint">Move source comics to <code>Comics_in/.archive</code> after conversion instead of deleting them</div>[m
+[32m+[m[32m                        </span>[m
+[32m+[m[32m                    </label>[m
+[32m+[m[32m                </div>[m
+             </div>[m
+             <div>[m
+                 <div class="sec" style="margin-top:0;padding-top:0;border-top:none">Notifications (Apprise)</div>[m

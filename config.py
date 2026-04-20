@@ -41,6 +41,7 @@ DEFAULT_CONFIG: ConfigDict = {
     'apprise_urls':          '',
     'notify_on_success':     True,
     'notify_on_failure':     True,
+    'preserve_originals':    False,
 }
 
 _config_lock = threading.Lock()

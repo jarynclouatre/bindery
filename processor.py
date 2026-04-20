@@ -13,8 +13,9 @@ from datetime import datetime, timezone
 
 from config import DEFAULT_CONFIG, load_config, ConfigDict
 
-COMICS_IN  = '/Comics_in'
-COMICS_OUT = '/Comics_out'
+COMICS_IN      = '/Comics_in'
+COMICS_OUT     = '/Comics_out'
+COMICS_ARCHIVE = os.path.join(COMICS_IN, '.archive')
 BOOKS_IN   = '/Books_in'
 BOOKS_OUT  = '/Books_out'
 
@@ -389,7 +390,12 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             for f in produced:
                 move_output_file(f, target_dir)
             if os.path.exists(filepath):
-                os.remove(filepath)
+                if c_type == 'comic' and config.get('preserve_originals', False):
+                    _dest = os.path.join(COMICS_ARCHIVE, os.path.relpath(filepath, COMICS_IN))
+                    os.makedirs(os.path.dirname(_dest), exist_ok=True)
+                    shutil.move(filepath, _dest)
+                else:
+                    os.remove(filepath)
                 prune_empty_dirs(filepath, in_base)
             count  = len(produced)
             suffix = 's' if count > 1 else ''
@@ -434,7 +440,8 @@ def scan_directories() -> None:
                         threading.Thread(target=process_file,
                                          args=(path, 'book'), daemon=True).start()
 
-    for root, _, files in os.walk(COMICS_IN):
+    for root, dirs, files in os.walk(COMICS_IN):
+        dirs[:] = [d for d in dirs if not (root == COMICS_IN and d == '.archive')]
         for f in files:
             if os.path.splitext(f)[1].lower() in COMIC_EXTS and not f.endswith('.failed'):
                 path = os.path.join(root, f)
@@ -478,6 +485,8 @@ def inotify_watch_loop() -> None:
             if os.path.splitext(path)[1].lower() not in self.exts:
                 return
             if path.endswith('.failed'):
+                return
+            if self.c_type == 'comic' and path.startswith(COMICS_ARCHIVE + os.sep):
                 return
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:

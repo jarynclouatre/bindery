@@ -16,7 +16,7 @@ from processor import (
 )
 from raw_processor import raw_watch_loop, raw_inotify_watch_loop
 
-VERSION = "3.0.2"
+VERSION = "3.1.0"
 
 
 def _clamp(value: object, min_val: float, max_val: float, default: float) -> str:
@@ -165,7 +165,8 @@ def create_app(start_threads: bool = True) -> Flask:
                         'kcc_forcecolor', 'kcc_colorautocontrast', 'kcc_colorcurve',
                         'kcc_stretch', 'kcc_upscale', 'kcc_nosplitrotate', 'kcc_rotate',
                         'kcc_metadatatitle', 'kcc_nokepub',
-                        'notify_on_success', 'notify_on_failure'):
+                        'notify_on_success', 'notify_on_failure',
+                        'preserve_originals'):
                 config[key] = key in request.form
             config['file_wait_timeout'] = request.form.get(
                 'file_wait_timeout', DEFAULT_CONFIG.get('file_wait_timeout', 60))

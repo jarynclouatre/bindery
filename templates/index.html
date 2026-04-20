@@ -475,6 +475,15 @@
                            value="{{ config.file_wait_timeout }}">
                 </div>
                 <p class="note">How long to wait for a file to finish transferring before skipping it. Increase for slow network drives. Range: 10–300 s.</p>
+                <div class="checks" style="margin-top:14px">
+                    <label class="check">
+                        <input type="checkbox" name="preserve_originals" {% if config.preserve_originals %}checked{% endif %}>
+                        <span>
+                            <div class="check-label">Preserve Originals</div>
+                            <div class="check-hint">Move source comics to <code>Comics_in/.archive</code> after conversion instead of deleting them</div>
+                        </span>
+                    </label>
+                </div>
             </div>
             <div>
                 <div class="sec" style="margin-top:0;padding-top:0;border-top:none">Notifications (Apprise)</div>

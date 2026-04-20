@@ -1,8 +1,11 @@
-## v3.0.1 — Bug Fixes & Housekeeping
+## v3.1.0 — Preserve Originals
 
-## [3.0.2] - 2026-04-18
+- Added: **Preserve Originals** toggle in Bindery Settings — when enabled, source files in `Comics_in` are moved to `Comics_in/.archive` (mirroring subfolder structure) after a successful conversion instead of being deleted; `.archive` is never scanned or reprocessed
+- Fixed: `pyproject.toml` version was out of sync with app version (was `2.8.1`)
+- Fixed: `CHANGELOG.md` had an empty `v3.0.1` heading and inconsistent entry format — standardised to `## vX.Y.Z — Description` throughout
 
-### Fixed
+## v3.0.2 — Bug Fixes & Housekeeping
+
 - **Premature processing of in-progress file transfers** (`processor.py`):
   `wait_for_file_ready` previously required only a single 2-second stable-size
   window before passing a file to the converter. Copy tools such as FileBrowser
