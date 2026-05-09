@@ -1,3 +1,8 @@
+## v3.3.0 — PDF Support for Comics
+
+- Added: `.pdf` is now recognised as a comic input format — drop PDFs into `Comics_in` and they'll be picked up by both the poll scan and inotify watcher, then converted with KCC; KCC supports PDF as a first-class input alongside CBZ/CBR
+- Note: EPUBs continue to be handled by the books pipeline (kepubify); KCC does not accept EPUB as input, so graphic-novel EPUBs should be dropped in `Books_in`
+
 ## v3.2.0 — Optional chown Skip
 
 - Added `SKIP_CHOWN` environment variable — set to `true` to skip the initial chown step entirely

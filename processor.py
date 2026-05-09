@@ -20,7 +20,7 @@ BOOKS_IN       = '/Books_in'
 BOOKS_OUT      = '/Books_out'
 
 BOOK_EXTS  = {'.epub'}
-COMIC_EXTS = {'.cbz', '.cbr', '.zip', '.rar'}
+COMIC_EXTS = {'.cbz', '.cbr', '.zip', '.rar', '.pdf'}
 
 PROCESSING_LOCKS = set()
 lock_mutex        = threading.Lock()

@@ -258,6 +258,26 @@ def test_scan_directories_dispatches_comic(tmp_path):
     assert any(str(comics_in / 'test.cbz') in str(a) for a in dispatched)
 
 
+def test_scan_directories_dispatches_pdf_comic(tmp_path):
+    """PDFs in Comics_in should be dispatched (KCC accepts PDF as input)."""
+    comics_in = tmp_path / 'comics_in'
+    books_in  = tmp_path / 'books_in'
+    comics_in.mkdir()
+    books_in.mkdir()
+    (comics_in / 'test.pdf').write_bytes(b'x')
+
+    dispatched = []
+    with patch.object(processor, 'COMICS_IN', str(comics_in)), \
+         patch.object(processor, 'BOOKS_IN',  str(books_in)), \
+         patch('processor.threading') as mock_threading:
+        def _fake_thread(target, args, daemon): dispatched.append(args); return MagicMock()
+        mock_threading.Thread = MagicMock(side_effect=_fake_thread)
+        processor.PROCESSING_LOCKS.clear()
+        processor.scan_directories()
+
+    assert any(str(comics_in / 'test.pdf') in str(a) for a in dispatched)
+
+
 def test_scan_directories_skips_failed_files(tmp_path):
     comics_in = tmp_path / 'comics_in'
     books_in  = tmp_path / 'books_in'

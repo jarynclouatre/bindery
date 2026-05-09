@@ -16,7 +16,7 @@ from processor import (
 )
 from raw_processor import raw_watch_loop, raw_inotify_watch_loop
 
-VERSION = "3.2.0"
+VERSION = "3.3.0"
 
 
 def _clamp(value: object, min_val: float, max_val: float, default: float) -> str:

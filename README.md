@@ -6,7 +6,7 @@ A self-hosted, Dockerized converter that automatically processes e-books and com
 
 **For Kobo users:** Converts `.epub` files to Kobo's native `.kepub` format using [kepubify](https://github.com/pgaskin/kepubify), giving you better performance and reading features than sideloaded EPUBs.
 
-**For all devices:** Converts comic archives (`.cbz`, `.cbr`, `.zip`, `.rar`) into device-optimised files using [Kindle Comic Converter (KCC)](https://github.com/ciromattia/kcc), with full control over profile, cropping, splitting, gamma, and more.
+**For all devices:** Converts comic archives and PDFs (`.cbz`, `.cbr`, `.zip`, `.rar`, `.pdf`) into device-optimised files using [Kindle Comic Converter (KCC)](https://github.com/ciromattia/kcc), with full control over profile, cropping, splitting, gamma, and more.
 
 All settings are configurable at runtime via a WebUI on port 5000 — no container rebuild needed. Supports `PUID`/`PGID` permission mapping for NAS and multi-user environments.
 
@@ -39,7 +39,7 @@ http://<server-ip>:5000
 bindery/
 ├── books_in/        ← drop .epub files here (Kobo users only)
 ├── books_out/       ← converted .kepub files appear here
-├── comics_in/       ← drop .cbz / .cbr / .zip / .rar here
+├── comics_in/       ← drop .cbz / .cbr / .zip / .rar / .pdf here
 │   └── .archive/   ← originals preserved here when Preserve Originals is enabled
 ├── comics_out/      ← converted files appear here
 ├── comics_raw/      ← drop a flat folder of images here; Bindery zips it to CBZ and processes it automatically
