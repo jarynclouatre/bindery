@@ -64,6 +64,7 @@ services:
     environment:
       - PUID=1000   # replace with your uid
       - PGID=1000   # replace with your gid
+      # - SKIP_CHOWN=true   # uncomment for NFS/SMB volumes the container can't chown (e.g. unprivileged LXC)
     volumes:
       - ./config:/app/config
       - /path/to/books_in:/Books_in

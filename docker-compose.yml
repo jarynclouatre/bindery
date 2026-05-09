@@ -7,6 +7,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      # - SKIP_CHOWN=true   # uncomment for NFS/SMB volumes the container can't chown
     volumes:
       - ./config:/app/config
       - ./books_in:/Books_in

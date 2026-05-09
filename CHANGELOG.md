@@ -1,3 +1,9 @@
+## v3.2.0 — Optional chown Skip
+
+- Added `SKIP_CHOWN` environment variable — set to `true` to skip the initial chown step entirely
+- Useful for setups where the container cannot chown its volumes but access works regardless, such as NFS mounts inside unprivileged LXC containers
+- Default behaviour is unchanged — chown still runs unless `SKIP_CHOWN=true` is explicitly set
+
 ## v3.1.1 — Skip Dot-Folders
 
 - Fixed: Bindery was scanning inside dot-folders (`.stfolder`, `.stversions`, etc.) — any directory whose name starts with `.` is now skipped universally in both poll and inotify modes; covers Syncthing and any other tool that creates hidden directories inside watched folders

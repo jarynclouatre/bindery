@@ -14,9 +14,13 @@ fi
 
 # Set ownership on the directories themselves, then only fix files that need it.
 # Avoids walking every file in large libraries on every container start.
-chown abc:abc /app/config /Comics_in /Comics_out /Books_in /Books_out /Comics_raw
-find /app/config /Comics_in /Comics_out /Books_in /Books_out /Comics_raw \
-     ! -user abc -exec chown abc:abc {} +
+# Set SKIP_CHOWN=true to skip entirely — useful for NFS/SMB mounts where the
+# container cannot chown but file access works regardless (e.g. unprivileged LXC).
+if [[ "${SKIP_CHOWN,,}" != "true" ]]; then
+    chown abc:abc /app/config /Comics_in /Comics_out /Books_in /Books_out /Comics_raw
+    find /app/config /Comics_in /Comics_out /Books_in /Books_out /Comics_raw \
+         ! -user abc -exec chown abc:abc {} +
+fi
 
 # Drop privileges and execute application
 exec gosu abc "$@"
