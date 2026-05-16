@@ -3,6 +3,7 @@ set -euo pipefail
 
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
+SKIP_CHOWN=${SKIP_CHOWN:-false}
 
 # Create internal user matching the host UID/GID
 if ! getent group abc >/dev/null 2>&1; then

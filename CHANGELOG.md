@@ -1,3 +1,7 @@
+## v3.3.1 — Fix Startup Crash When SKIP_CHOWN Unset
+
+- Fixed: `entrypoint.sh` crashed on startup with `SKIP_CHOWN: unbound variable` whenever the `SKIP_CHOWN` environment variable was not set — the script runs under `set -u` and the `${SKIP_CHOWN,,}` expansion had no default, so any setup that never opted into `SKIP_CHOWN` (i.e. the default for everyone) failed to start. `SKIP_CHOWN` now defaults to `false`, mirroring the existing `PUID`/`PGID` pattern; behaviour is unchanged when it is set explicitly
+
 ## v3.3.0 — PDF Support for Comics
 
 - Added: `.pdf` is now recognised as a comic input format — drop PDFs into `Comics_in` and they'll be picked up by both the poll scan and inotify watcher, then converted with KCC; KCC supports PDF as a first-class input alongside CBZ/CBR
