@@ -22,6 +22,10 @@ BOOKS_OUT      = '/Books_out'
 BOOK_EXTS  = {'.epub'}
 COMIC_EXTS = {'.cbz', '.cbr', '.zip', '.rar', '.pdf'}
 
+# Minimum seconds since the last file modification inside a folder before
+# treating it as ready for KCC. Prevents processing mid-upload.
+FOLDER_STABILITY_SECS = 30
+
 PROCESSING_LOCKS = set()
 lock_mutex        = threading.Lock()
 LOG_BUFFER        = deque(maxlen=300)
@@ -197,7 +201,10 @@ def retry_file(job_id: str) -> bool:
     with lock_mutex:
         if original not in PROCESSING_LOCKS:
             PROCESSING_LOCKS.add(original)
-            threading.Thread(target=process_file, args=(original, c_type, job_id), daemon=True).start()
+            if os.path.isdir(original):
+                threading.Thread(target=process_folder, args=(original, job_id), daemon=True).start()
+            else:
+                threading.Thread(target=process_file, args=(original, c_type, job_id), daemon=True).start()
     return True
 
 
@@ -233,6 +240,29 @@ def wait_for_file_ready(filepath: str, timeout: int = 60) -> bool:
             stable_count = 0
         time.sleep(2)
     return False
+
+
+def _is_dir_stable(dirpath: str) -> bool:
+    """Return True if dirpath is non-empty and no file inside was modified recently.
+
+    Walks the directory recursively and checks that the newest mtime is at least
+    FOLDER_STABILITY_SECS seconds in the past. An empty directory returns False —
+    it may still be populated.
+    """
+    newest    = 0.0
+    found_any = False
+    for root, _dirs, files in os.walk(dirpath):
+        for fname in files:
+            try:
+                mtime = os.path.getmtime(os.path.join(root, fname))
+                found_any = True
+                if mtime > newest:
+                    newest = mtime
+            except OSError:
+                pass
+    if not found_any:
+        return False
+    return (time.time() - newest) >= FOLDER_STABILITY_SECS
 
 
 def get_output_files(directory: str) -> list[str]:
@@ -429,6 +459,82 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             PROCESSING_LOCKS.discard(filepath)
 
 
+def process_folder(folderpath: str, job_id: str | None = None) -> None:
+    """Convert a folder of comic files as a single bundled KCC volume.
+
+    KCC accepts a directory as its input argument and treats the contents as
+    chapters of one volume. The folder is removed (or archived) on success,
+    or renamed to <name>.failed on error.
+    """
+    short    = os.path.basename(folderpath)[:40]
+    temp_out = os.path.join('/tmp', uuid.uuid4().hex + '_out')
+
+    try:
+        if job_id is None:
+            job_id = _register_job(folderpath, 'comic')
+
+        if not _is_dir_stable(folderpath):
+            log(f">>> SKIP (not ready): {short}/")
+            with job_registry_lock:
+                JOB_REGISTRY.pop(job_id, None)
+                _save_job_registry()
+            return
+
+        _update_job(job_id, state='processing', started=_now())
+
+        config = load_config()
+        os.makedirs(temp_out, exist_ok=True)
+        cmd    = _build_kcc_cmd(config, folderpath, temp_out)
+
+        log(f">>> QUEUED (folder): {short}/")
+        with kcc_semaphore:
+            log(f">>> STARTING: kcc-c2e on {short}/")
+            log(f">>> CMD: {' '.join(cmd)}")
+            _run_conversion(cmd, short)
+
+        produced = get_output_files(temp_out)
+        if produced:
+            for f in produced:
+                move_output_file(f, COMICS_OUT)
+            if os.path.exists(folderpath):
+                if config.get('preserve_originals', False):
+                    _dest = os.path.join(COMICS_ARCHIVE, os.path.basename(folderpath))
+                    os.makedirs(COMICS_ARCHIVE, exist_ok=True)
+                    shutil.move(folderpath, _dest)
+                else:
+                    shutil.rmtree(folderpath)
+            count  = len(produced)
+            suffix = 's' if count > 1 else ''
+            log(f">>> SUCCESS ({count} file{suffix}): {short}/")
+            _update_job(job_id, state='success', finished=_now())
+            _notify('success', short + '/')
+        else:
+            log(f">>> FAILED (no output file found): {short}/")
+            if os.path.exists(folderpath):
+                os.rename(folderpath, folderpath + '.failed')
+            _update_job(job_id, state='failed', finished=_now(), error='no output produced')
+            _notify('failure', short + '/', 'no output produced')
+
+    except ConversionError as e:
+        msg = f'exit {e.returncode}'
+        log(f">>> FAILED ({msg}): {short}/")
+        if os.path.exists(folderpath):
+            os.rename(folderpath, folderpath + '.failed')
+        _update_job(job_id, state='failed', finished=_now(), error=msg)
+        _notify('failure', short + '/', msg)
+    except Exception as e:
+        msg = str(e)
+        log(f">>> ERROR: {short}/ — {msg}")
+        if os.path.exists(folderpath):
+            os.rename(folderpath, folderpath + '.failed')
+        _update_job(job_id, state='failed', finished=_now(), error=msg)
+        _notify('failure', short + '/', msg)
+    finally:
+        shutil.rmtree(temp_out, ignore_errors=True)
+        with lock_mutex:
+            PROCESSING_LOCKS.discard(folderpath)
+
+
 def scan_directories() -> None:
     for root, dirs, files in os.walk(BOOKS_IN):
         dirs[:] = [d for d in dirs if not d.startswith('.')]
@@ -441,8 +547,31 @@ def scan_directories() -> None:
                         threading.Thread(target=process_file,
                                          args=(path, 'book'), daemon=True).start()
 
+    # Dispatch any top-level Comics_in subdirectory as a bundled KCC job.
+    # These are collected first so the file walk below can skip them — we don't
+    # want to also process individual chapter files inside a folder job.
+    folder_job_names: set[str] = set()
+    try:
+        top_entries = os.listdir(COMICS_IN)
+    except OSError:
+        top_entries = []
+    for entry in top_entries:
+        if entry.startswith('.') or entry.endswith('.failed'):
+            continue
+        full = os.path.join(COMICS_IN, entry)
+        if not os.path.isdir(full):
+            continue
+        folder_job_names.add(entry)
+        with lock_mutex:
+            if full not in PROCESSING_LOCKS:
+                PROCESSING_LOCKS.add(full)
+                threading.Thread(target=process_folder, args=(full,), daemon=True).start()
+
     for root, dirs, files in os.walk(COMICS_IN):
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        if root == COMICS_IN:
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in folder_job_names]
+        else:
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
         for f in files:
             if os.path.splitext(f)[1].lower() in COMIC_EXTS and not f.endswith('.failed'):
                 path = os.path.join(root, f)
@@ -498,11 +627,27 @@ def inotify_watch_loop() -> None:
                         daemon=True,
                     ).start()
 
+        def _maybe_dispatch_dir(self, path: str) -> None:
+            # Only top-level directories directly inside Comics_in are treated
+            # as bundled folder jobs. Deeper directories are ignored here.
+            if os.path.dirname(os.path.abspath(path)) != os.path.abspath(COMICS_IN):
+                return
+            base = os.path.basename(path)
+            if base.startswith('.') or base.endswith('.failed'):
+                return
+            with lock_mutex:
+                if path not in PROCESSING_LOCKS:
+                    PROCESSING_LOCKS.add(path)
+                    threading.Thread(target=process_folder, args=(path,), daemon=True).start()
+
         def on_created(self, event) -> None:  # type: ignore[override]
             # on_created fires as soon as the file appears, before data is
             # written. Still handle it so wait_for_file_ready can do its
             # stability check, but on_closed is the more reliable signal.
-            if not event.is_directory:
+            if event.is_directory:
+                if self.c_type == 'comic':
+                    self._maybe_dispatch_dir(event.src_path)
+            else:
                 self._maybe_dispatch(event.src_path)
 
         def on_closed(self, event) -> None:  # type: ignore[override]
@@ -514,7 +659,10 @@ def inotify_watch_loop() -> None:
                 self._maybe_dispatch(event.src_path)
 
         def on_moved(self, event) -> None:  # type: ignore[override]
-            if not event.is_directory:
+            if event.is_directory:
+                if self.c_type == 'comic':
+                    self._maybe_dispatch_dir(event.dest_path)
+            else:
                 self._maybe_dispatch(event.dest_path)
 
     scan_directories()
