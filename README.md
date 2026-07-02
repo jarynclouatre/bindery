@@ -40,7 +40,8 @@ bindery/
 ├── books_in/        ← drop .epub files here (Kobo users only)
 ├── books_out/       ← converted .kepub files appear here
 ├── comics_in/       ← drop .cbz / .cbr / .zip / .rar / .pdf here
-│   └── .archive/   ← originals preserved here when Preserve Originals is enabled
+│   ├── Some Series/ ← a folder here becomes ONE bundled volume (files inside = chapters)
+│   └── .archive/    ← originals preserved here when Preserve Originals is enabled
 ├── comics_out/      ← converted files appear here
 ├── comics_raw/      ← drop a flat folder of images here; Bindery zips it to CBZ and processes it automatically
 │   ├── processed/   ← original image folders moved here on success
@@ -48,7 +49,7 @@ bindery/
 └── config/          ← settings.json and jobs.json persisted here
 ```
 
-All folders are created automatically on first run. Subfolder structure is preserved — a file at `comics_in/Marvel/issue01.cbz` will convert to `comics_out/Marvel/issue01.epub`. Books work the same way.
+All folders are created automatically on first run. Books keep their subfolder structure — `books_in/Tolkien/hobbit.epub` converts to `books_out/Tolkien/hobbit.kepub`. Comics work differently: loose files in the root of `comics_in` convert individually, while a folder is treated as one volume — every archive inside becomes a chapter and KCC produces a single file named after the folder.
 
 ---
 
@@ -115,7 +116,7 @@ Full URL formats for every supported service are in the [Apprise docs](https://g
 All KCC settings are configured in the WebUI — each option includes a description inline. The most important settings to get right for your setup are:
 
 - **Device Profile** — match your exact device for correct resolution. Default is `KoLC` (Kobo Libra Colour).
-- **Output Format** — `EPUB` for Kobo, `MOBI` for Kindle.
+- **Output Format** — `EPUB` (default) or `CBZ`. For Kindle devices, convert to EPUB and deliver with [Send to Kindle](https://www.amazon.com/sendtokindle). MOBI and KFX were removed in v3.4.0 — MOBI needs Amazon's abandoned kindlegen binary and KFX a Calibre plugin, neither of which can ship in this image, so those conversions always failed.
 - **Manga Style** — enables right-to-left page order; enable for manga.
 - **Stretch** — fills the screen ignoring aspect ratio; on by default.
 - **Splitter** — controls how landscape pages are split. Use `Right then left` for manga.
@@ -128,7 +129,7 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 
 | Setting | Default | Notes |
 |---------|---------|-------|
-| Watcher Mode | `poll` | `poll` scans every 10 s and works everywhere including NFS/SMB. `inotify` detects files instantly but only works on local filesystems — files on network mounts will be silently missed. Requires a container restart to take effect. |
+| Watcher Mode | `poll` | `poll` scans every 10 s and works everywhere including NFS/SMB. `inotify` detects files instantly on local filesystems, with a 60 s backstop scan covering network mounts and mid-transfer folders. Requires a container restart to take effect. |
 | File Stability Timeout | `60` s | How long Bindery waits for a file to finish transferring before skipping it. Increase for slow network drives. Range: 10–300 s. |
 | Notifications (Apprise) | *(blank)* | One Apprise service URL per line. Leave blank to disable notifications. See [Apprise docs](https://github.com/caronc/apprise/wiki) for URL formats. |
 | Preserve Originals | disabled | When enabled, source comics are moved to `Comics_in/.archive` after a successful conversion instead of being deleted. Subdirectory structure is mirrored. Has no effect on book conversions. |
@@ -137,13 +138,15 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 
 ## Behaviour
 
-- Bindery watches `/Books_in`, `/Comics_in` and `/Comics_raw` using either **poll** mode (every 10 s, NAS/SMB/NFS compatible) or **inotify** mode (instant, local filesystems only).
+- Bindery watches `/Books_in`, `/Comics_in` and `/Comics_raw` using either **poll** mode (every 10 s, NAS/SMB/NFS compatible) or **inotify** mode (instant on local filesystems, with a 60 s backstop scan for anything events miss).
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
-- Subfolder structure is preserved — a file at `Comics_in/Marvel/issue01.cbz` converts to `Comics_out/Marvel/issue01.epub`.
-- On success: converted file is moved to the output folder. Source file is deleted, or moved to `Comics_in/.archive` (mirroring subfolder structure) if **Preserve Originals** is enabled.
-- On failure: source file is renamed to `<filename>.failed` and will not be retried automatically. Use the Retry button in the WebUI to re-queue it.
+- Book subfolder structure is preserved — `Books_in/Tolkien/hobbit.epub` converts to `Books_out/Tolkien/hobbit.kepub`.
+- A folder dropped into `Comics_in` is one bundled job: its files become chapters of a single volume named after the folder. Processing starts once nothing inside has changed for 30 s.
+- On success: converted file is moved to the output folder. The source is deleted, or moved to `Comics_in/.archive` if **Preserve Originals** is enabled.
+- On failure: the source is renamed to `<filename>.failed` and will not be retried automatically. Use the Retry button in the WebUI to re-queue it.
 - Raw image folders in `Comics_raw` are held until stable (no file changes for 30 s) before processing begins.
 - Live logs are shown in the WebUI and streamed to `docker logs`.
+- The WebUI has no authentication — keep port 5000 on your LAN or behind a VPN; don't forward it to the internet.
 
 ---
 

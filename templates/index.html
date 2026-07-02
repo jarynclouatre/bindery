@@ -463,7 +463,7 @@
                         <option value="inotify" {% if config.watcher_mode == "inotify" %}selected{% endif %}>inotify (instant, local filesystems only)</option>
                     </select>
                 </div>
-                <p class="note">Poll works everywhere including network shares (NFS, SMB). inotify is instant but only works on local filesystems — files on network mounts will be silently missed.</p>
+                <p class="note">Poll works everywhere including network shares (NFS, SMB). inotify is instant on local filesystems; a 60&nbsp;s backstop scan covers network mounts and anything else events miss.</p>
             </div>
             <div>
                 <div class="field">
@@ -504,9 +504,9 @@
         </div>
         <div class="alert-warn" id="inotify-warn">
             <strong>inotify requires a container restart to take effect.</strong><br>
-            Not supported on network shares (NFS, SMB/CIFS) — files on those mounts will be silently missed.
-            Most SFTP clients that use temp-then-rename (e.g. WinSCP) work correctly;
-            direct-write clients may miss events. The button below saves your settings and restarts in one step.
+            Events don't fire on network shares (NFS, SMB/CIFS) — files there are picked up by the
+            60-second backstop scan instead of instantly. The button below saves your settings and
+            restarts in one step.
             <br><button type="button" class="btn-restart" id="restart-btn">Save &amp; Restart</button>
         </div>
     </div>

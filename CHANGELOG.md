@@ -1,3 +1,14 @@
+## v3.4.0 — Folder Volumes, Format Cleanup & Watcher Fixes
+
+- Added: drop a folder into `Comics_in` and it converts as one bundled volume — the files inside become chapters and the output is named after the folder; works with Retry and Preserve Originals
+- Removed: `MOBI` and `KFX` output formats — MOBI needs Amazon's abandoned kindlegen binary and KFX a Calibre plugin, neither of which exists in the image, so every such conversion failed; saved configs fall back to `EPUB`, which Kindles accept via Send to Kindle
+- Fixed: **Cropping Minimum** was sent to KCC unconverted, but KCC expects a 0–1 ratio rather than a percentage — the old default of `1` suppressed cropping entirely; the value is now divided by 100 and the default is `0`
+- Fixed: inotify mode never processed `Comics_in` folder jobs (their events fire while the folder is still copying) and could convert-and-delete files inside a folder job individually; folder contents now route to their folder job, and a 60 s backstop scan catches whatever events miss — which also un-strands files on network mounts and slow `Comics_raw` copies
+- Fixed: repeated failures no longer collide — `.failed` renames pick a free name (`X_2.failed`), the job remembers the real path so Retry still finds it, and Retry refuses to overwrite a newly dropped file with the same name
+- Fixed: Preserve Originals archive moves are collision-safe instead of overwriting files or nesting folders
+- Fixed: the live activity log froze once its 300-line buffer filled — the WebUI now detects buffer rotation, not just growth
+- Removed: stale `patch.py` release script and the unused `packaging` dependency; gunicorn is pinned `>=25.1` for `--no-control-socket`
+
 ## v3.3.1 — Fix Startup Crash When SKIP_CHOWN Unset
 
 - Fixed: `entrypoint.sh` crashed on startup with `SKIP_CHOWN: unbound variable` whenever the `SKIP_CHOWN` environment variable was not set — the script runs under `set -u` and the `${SKIP_CHOWN,,}` expansion had no default, so any setup that never opted into `SKIP_CHOWN` (i.e. the default for everyone) failed to start. `SKIP_CHOWN` now defaults to `false`, mirroring the existing `PUID`/`PGID` pattern; behaviour is unchanged when it is set explicitly
