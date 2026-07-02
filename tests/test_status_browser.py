@@ -85,6 +85,21 @@ def test_load_job_registry_ignores_missing_file(tmp_path):
     assert processor.JOB_REGISTRY == {}
 
 
+def test_load_job_registry_drops_stale_running_jobs(tmp_path):
+    """Jobs persisted as queued/processing died with the old process — they
+    must not come back as permanent 'processing' rows in the UI."""
+    jobs_file = tmp_path / 'jobs.json'
+    data = {
+        'done':  {'id': 'done',  'state': 'success',    'created': '2024-01-01T00:00:00Z'},
+        'dead':  {'id': 'dead',  'state': 'processing', 'created': '2024-01-01T00:00:01Z'},
+        'ghost': {'id': 'ghost', 'state': 'queued',     'created': '2024-01-01T00:00:02Z'},
+    }
+    jobs_file.write_text(json.dumps(data))
+    with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
+        processor._load_job_registry()
+    assert set(processor.JOB_REGISTRY) == {'done'}
+
+
 def test_load_job_registry_ignores_bad_json(tmp_path):
     jobs_file = tmp_path / 'jobs.json'
     jobs_file.write_text('not json {{{')

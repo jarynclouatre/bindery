@@ -183,16 +183,22 @@ def test_build_kcc_cmd_metadatatitle_uses_filename(tmp_path):
     config['kcc_metadatatitle'] = True
     filepath = str(tmp_path / 'My Comic.cbz')
     cmd = processor._build_kcc_cmd(config, filepath, '/tmp/out')
-    assert '--title' in cmd
-    assert 'My Comic' in cmd
+    assert '--title=My Comic' in cmd
+
+
+def test_build_kcc_cmd_dash_leading_title_stays_a_value(tmp_path):
+    """A file named -Batman.cbz must not read as an option to kcc's argparse."""
+    config = dict(DEFAULT_CONFIG)
+    config['kcc_metadatatitle'] = True
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / '-Batman.cbz'), '/tmp/out')
+    assert '--title=-Batman' in cmd
 
 
 def test_build_kcc_cmd_author_included(tmp_path):
     config = dict(DEFAULT_CONFIG)
     config['kcc_author'] = 'Frank Miller'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--author' in cmd
-    assert 'Frank Miller' in cmd
+    assert '--author=Frank Miller' in cmd
 
 
 def test_build_kcc_cmd_croppingminimum_percent_to_ratio(tmp_path):
@@ -595,3 +601,16 @@ def test_process_folder_failure_keeps_earlier_failed_folder(tmp_path):
     job = list(processor.JOB_REGISTRY.values())[0]
     assert job['state'] == 'failed'
     assert job['failed_path'] == str(comics_in / 'Batman_2.failed')
+
+
+def test_strip_leading_dash_renames_and_updates_job(tmp_path):
+    """KCC runs 7z on the bare basename, so -Batman.cbz reads as a switch there."""
+    src = tmp_path / '-Batman.cbz'
+    src.write_bytes(b'x')
+    with patch.object(processor, 'JOBS_FILE', str(tmp_path / 'jobs.json')):
+        job_id  = processor._register_job(str(src), 'comic')
+        newpath = processor._strip_leading_dash(str(src), job_id)
+    assert os.path.basename(newpath) == 'Batman.cbz'
+    assert (tmp_path / 'Batman.cbz').exists()
+    assert not src.exists()
+    assert processor.JOB_REGISTRY[job_id]['filepath'] == newpath

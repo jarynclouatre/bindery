@@ -87,13 +87,22 @@ def _load_job_registry() -> None:
 
     Uses .update() on the existing dict so that references imported by other
     modules (e.g. app.py) continue to point at the same object.
+
+    Jobs persisted as queued/processing belonged to threads that died with the
+    previous process — their sources are still in the watch folders and get
+    picked up as fresh jobs, so the stale entries are dropped rather than left
+    as permanent "processing" rows in the UI.
     """
     try:
         with open(JOBS_FILE) as f:
             data = json.load(f)
         if isinstance(data, dict):
             with job_registry_lock:
-                JOB_REGISTRY.update(data)
+                JOB_REGISTRY.update(
+                    (k, v) for k, v in data.items()
+                    if isinstance(v, dict) and v.get('state') in ('success', 'failed')
+                )
+                _save_job_registry()
     except (OSError, json.JSONDecodeError):
         pass
 
@@ -327,13 +336,19 @@ def _rename_failed(path: str) -> str | None:
         return None
 
 
+_output_move_lock = threading.Lock()
+
+
 def move_output_file(produced_file: str, target_dir: str) -> None:
     """Move a single conversion output to target_dir, applying any needed renaming."""
     filename = os.path.basename(produced_file)
     if filename.endswith('.kepub.epub'):
         filename = filename[:-len('.kepub.epub')] + '.kepub'
     os.makedirs(target_dir, exist_ok=True)
-    shutil.move(produced_file, _collision_free(os.path.join(target_dir, filename)))
+    # Books convert in parallel; the lock keeps two same-named outputs from
+    # both picking the same collision-free name and overwriting each other.
+    with _output_move_lock:
+        shutil.move(produced_file, _collision_free(os.path.join(target_dir, filename)))
 
 
 class ConversionError(Exception):
@@ -399,12 +414,13 @@ def _build_kcc_cmd(config: ConfigDict, filepath: str, temp_out: str) -> list[str
     if config['kcc_rotate']:            cmd.append('--rotate')
     if config['kcc_nokepub']:           cmd.append('--nokepub')
 
+    # = form, so filenames/authors starting with a dash don't read as options
     if config['kcc_metadatatitle']:
         title = os.path.splitext(os.path.basename(filepath))[0]
-        cmd.extend(['--title', title])
+        cmd.append('--title=' + title)
 
     if config.get('kcc_author', '').strip():
-        cmd.extend(['--author', config['kcc_author'].strip()])
+        cmd.append('--author=' + config['kcc_author'].strip())
 
     if config['kcc_profile'] == 'OTHER':
         if config.get('kcc_customwidth', '').strip():
@@ -416,11 +432,35 @@ def _build_kcc_cmd(config: ConfigDict, filepath: str, temp_out: str) -> list[str
     return cmd
 
 
+def _strip_leading_dash(filepath: str, job_id: str) -> str:
+    """Rename a dash-leading source file so KCC's 7z call doesn't eat it.
+
+    KCC extracts archives by running 7z with the bare basename (cwd-relative),
+    and 7z parses a leading dash as a switch — every such file would fail. The
+    rename is logged and the job's filepath updated so Retry follows it.
+    """
+    base = os.path.basename(filepath)
+    if not base.startswith('-'):
+        return filepath
+    stripped = base.lstrip('- ')
+    if not stripped or stripped.startswith('.'):
+        stripped = 'file' + os.path.splitext(base)[1]
+    safe = _collision_free(os.path.join(os.path.dirname(filepath), stripped))
+    try:
+        os.rename(filepath, safe)
+    except OSError:
+        return filepath
+    log(f">>> RENAMED (leading dash breaks extraction): {base} -> {os.path.basename(safe)}")
+    _update_job(job_id, filepath=safe, filename=os.path.basename(safe))
+    return safe
+
+
 def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
     """Convert a single file, tracking state in the job registry."""
     short    = os.path.basename(filepath)[:40]
     in_base  = BOOKS_IN if c_type == 'book' else COMICS_IN
     temp_out = os.path.join('/tmp', uuid.uuid4().hex + '_out')
+    lock_key = filepath
 
     try:
         # Register inside try so PROCESSING_LOCKS.discard always runs in finally.
@@ -435,6 +475,10 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
                 JOB_REGISTRY.pop(job_id, None)
                 _save_job_registry()
             return
+
+        if c_type == 'comic':
+            filepath = _strip_leading_dash(filepath, job_id)
+            short    = os.path.basename(filepath)[:40]
 
         _update_job(job_id, state='processing', started=_now())
 
@@ -497,7 +541,7 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
     finally:
         shutil.rmtree(temp_out, ignore_errors=True)
         with lock_mutex:
-            PROCESSING_LOCKS.discard(filepath)
+            PROCESSING_LOCKS.discard(lock_key)
 
 
 def process_folder(folderpath: str, job_id: str | None = None) -> None:
