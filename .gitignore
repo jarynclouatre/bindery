@@ -5,4 +5,5 @@ books_in/
 books_out/
 comics_raw/
 __pycache__/
+.pytest_cache/
 *.failed

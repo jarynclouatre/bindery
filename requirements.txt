@@ -1,6 +1,5 @@
 Flask
-gunicorn
-packaging
+gunicorn>=25.1
 git+https://github.com/ciromattia/kcc.git@v9.4.3
 watchdog
 apprise
