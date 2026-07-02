@@ -6,16 +6,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23141414'/><rect x='14' y='7' width='54' height='68' rx='6' fill='%235aabff'/><rect x='14' y='7' width='8' height='68' rx='4' fill='%233d8fe0'/></svg>">
     <style>
+        :root {
+            --bg: #141414;
+            --surface: #1c1c1c;
+            --field: #222;
+            --line: #282828;
+            --line-soft: #252525;
+            --line-field: #363636;
+            --ink: #e0e0e0;
+            --ink-soft: #a0a0a0;   /* labels, column headers, hints */
+            --ink-faint: #8a8a8a;  /* metadata, timestamps, fine print */
+            --accent: #5aabff;
+            --accent-down: #3d8fe0;
+            --ok: #5db85d;
+            --err: #c96060;
+            --warn: #c9a840;
+        }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #141414; color: #e0e0e0; padding: 24px 16px;
+            background: var(--bg); color: var(--ink); padding: 24px 16px;
         }
         .wrap { max-width: 980px; margin: auto; }
-        h1 { font-size: 1.5rem; color: #5aabff; margin-bottom: 2px; }
-        .version { font-size: .7rem; color: #444; margin-bottom: 6px; }
-        .subtitle { font-size: .85rem; color: #555; margin-bottom: 24px; }
-        h2 { font-size: .82rem; color: #5aabff; border-bottom: 1px solid #252525;
+        h1 { font-size: 1.5rem; color: var(--accent); margin-bottom: 2px; }
+        .version { font-size: .7rem; color: var(--ink-faint); margin-bottom: 6px; }
+        .subtitle { font-size: .85rem; color: var(--ink-faint); margin-bottom: 24px; }
+        h2 { font-size: .82rem; color: var(--accent); border-bottom: 1px solid var(--line-soft);
              padding-bottom: 8px; margin: 0 0 16px; text-transform: uppercase;
              letter-spacing: .07em; }
         .log-title { border: none; padding-bottom: 0; margin-bottom: 0; }
@@ -28,7 +44,7 @@
         @media (max-width: 760px) { .grid-3 { grid-template-columns: 1fr; } }
         .field { margin-bottom: 14px; }
         .field:last-child { margin-bottom: 0; }
-        label.lbl { display: block; font-size: .73rem; font-weight: 700; color: #666;
+        label.lbl { display: block; font-size: .73rem; font-weight: 700; color: var(--ink-soft);
                     text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
         select, input[type="text"], input[type="number"] {
             width: 100%; padding: 8px 10px; background: #222; border: 1px solid #363636;
@@ -41,7 +57,7 @@
             font-family: inherit; line-height: 1.5;
         }
         textarea:focus { outline: none; border-color: #5aabff; }
-        .sec { font-size: .7rem; font-weight: 700; color: #444; text-transform: uppercase;
+        .sec { font-size: .7rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase;
                letter-spacing: .08em; margin: 18px 0 10px;
                padding-top: 14px; border-top: 1px solid #252525; }
         .sec:first-child { margin-top: 0; padding-top: 0; border-top: none; }
@@ -56,7 +72,7 @@
             accent-color: #5aabff; cursor: pointer; flex-shrink: 0;
         }
         .check-label { font-size: .88rem; color: #d8d8d8; line-height: 1.3; }
-        .check-hint  { font-size: .74rem; color: #4a4a4a; margin-top: 2px; }
+        .check-hint  { font-size: .74rem; color: var(--ink-soft); margin-top: 2px; }
         .btn { display: block; width: 100%; padding: 13px; margin-top: 22px;
                background: #5aabff; color: #0a0a0a; border: none; border-radius: 6px;
                font-size: .95rem; font-weight: 700; cursor: pointer;
@@ -74,14 +90,14 @@
         .log-err  { color: #c96060; }
         .log-cmd  { color: #4a4a4a; }
         .log-info { color: #a0a0a0; }
-        .note { font-size: .74rem; color: #444; margin-bottom: 10px; line-height: 1.5; }
+        .note { font-size: .74rem; color: var(--ink-soft); margin-bottom: 10px; line-height: 1.5; }
         .logo-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
         .logo-icon { width: 48px; height: 48px; flex-shrink: 0; }
         .logo-text h1 { font-size: 2rem; font-family: Georgia, 'Times New Roman', serif;
                         color: #e8e8e8; letter-spacing: .01em; margin-bottom: 2px; }
-        .logo-text .tagline { font-size: .68rem; color: #555; letter-spacing: .18em;
+        .logo-text .tagline { font-size: .68rem; color: var(--ink-faint); letter-spacing: .18em;
                               text-transform: uppercase; font-weight: 600; }
-        .logo-text .submode { font-size: .75rem; color: #444; margin-top: 2px; }
+        .logo-text .submode { font-size: .75rem; color: var(--ink-faint); margin-top: 2px; }
         .alert-warn { background: #1e1a0e; border: 1px solid #5a4a10; color: #c9a840;
                       border-radius: 6px; padding: 10px 14px; margin-top: 14px;
                       font-size: .88rem; line-height: 1.5; display: none; }
@@ -96,55 +112,77 @@
         #restart-overlay.show { display: flex; }
         .restart-box { background: #1c1c1c; border: 1px solid #363636; border-radius: 10px;
                        padding: 32px 40px; text-align: center; color: #e0e0e0; }
-        .restart-box p { margin-top: 10px; font-size: .88rem; color: #777; }
+        .restart-box p { margin-top: 10px; font-size: .88rem; color: var(--ink-soft); }
         optgroup { background: #1c1c1c; }
         option   { background: #222; color: #e0e0e0; }
         /* Status table */
         .badge { display: inline-block; padding: 2px 8px; border-radius: 10px;
                  font-size: .68rem; font-weight: 700; text-transform: uppercase;
                  letter-spacing: .05em; }
-        .badge-queued     { background: #222;    color: #666; }
+        .badge-queued     { background: #222;    color: var(--ink-soft); }
         .badge-processing { background: #1a2a3a; color: #5aabff; }
         .badge-success    { background: #182818; color: #5db85d; }
         .badge-failed     { background: #2a1818; color: #c96060; }
         .status-scroll { max-height: 280px; overflow-y: auto; }
         .status-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-        .status-table th { color: #555; font-size: .7rem; text-transform: uppercase;
+        .status-table th { color: var(--ink-soft); font-size: .7rem; text-transform: uppercase;
                            letter-spacing: .06em; font-weight: 700;
                            padding: 0 10px 10px 0; text-align: left;
                            border-bottom: 1px solid #252525; white-space: nowrap; }
         .status-table td { padding: 7px 10px 7px 0; border-bottom: 1px solid #1e1e1e;
                            vertical-align: middle; }
         .status-table tr:last-child td { border-bottom: none; }
-        .col-fn { color: #d8d8d8; word-break: break-all; }
-        .col-ts { color: #555; font-size: .74rem; white-space: nowrap; }
+        .col-fn { color: #d8d8d8; overflow-wrap: anywhere; }
+        .col-ts { color: var(--ink-faint); font-size: .74rem; white-space: nowrap; }
         .btn-retry { padding: 3px 10px; background: #2a1818; border: 1px solid #5a2a2a;
                      color: #c96060; border-radius: 4px; font-size: .72rem; font-weight: 700;
                      cursor: pointer; transition: background .12s; }
         .btn-retry:hover { background: #3a2020; }
-        .tbl-empty { color: #444; font-size: .82rem; text-align: center; padding: 22px 0; }
+        .tbl-empty { color: var(--ink-faint); font-size: .82rem; text-align: center; padding: 22px 0; }
         /* File browser */
         .file-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
-        .file-tab { padding: 4px 16px; border-radius: 20px; font-size: .78rem; font-weight: 700;
+        .file-tab { padding: 6px 16px; border-radius: 20px; font-size: .78rem; font-weight: 700;
                     cursor: pointer; border: 1px solid #2a2a2a; background: transparent;
-                    color: #555; transition: all .12s; }
+                    color: var(--ink-soft); transition: all .12s; }
         .file-tab.active { background: #5aabff; color: #0a0a0a; border-color: #5aabff; }
-        .file-tab:not(.active):hover { border-color: #444; color: #999; }
+        .file-tab:not(.active):hover { border-color: #555; color: var(--ink); }
         .file-scroll { max-height: 280px; overflow-y: auto; }
         .file-list { list-style: none; }
         .file-item { display: flex; align-items: center; gap: 10px;
                      padding: 7px 0; border-bottom: 1px solid #1e1e1e; }
         .file-item:last-child { border-bottom: none; }
-        .file-name { color: #d8d8d8; font-size: .84rem; word-break: break-all; flex: 1; }
-        .file-meta { color: #444; font-size: .74rem; white-space: nowrap; }
+        .file-name { color: #d8d8d8; font-size: .84rem; overflow-wrap: anywhere; flex: 1; }
+        .file-meta { color: var(--ink-faint); font-size: .74rem; white-space: nowrap; }
         .btn-dl { padding: 3px 10px; background: #182818; border: 1px solid #2a5a2a;
                   color: #5db85d; border-radius: 4px; font-size: .72rem; font-weight: 700;
                   text-decoration: none; white-space: nowrap; transition: background .12s; }
         .btn-dl:hover { background: #1e3a1e; }
-        .file-empty { color: #444; font-size: .82rem; text-align: center; padding: 22px 0; }
+        .file-empty { color: var(--ink-faint); font-size: .82rem; text-align: center; padding: 22px 0; }
         .refresh-btn { background: none; border: none; color: #5aabff; font-size: .8rem;
                        cursor: pointer; padding: 0; }
         .refresh-btn:hover { text-decoration: underline; }
+        .btn:focus-visible, .btn-restart:focus-visible, .btn-retry:focus-visible,
+        .btn-dl:focus-visible, .file-tab:focus-visible, .refresh-btn:focus-visible,
+        .check input:focus-visible {
+            outline: 2px solid var(--accent); outline-offset: 2px;
+        }
+        .live-dot { color: #3a5c3a; font-size: .8rem; }
+        @media (max-width: 760px) {
+            body { padding: 16px 10px; }
+            .card { padding: 16px 14px; }
+            .status-table th:nth-child(2), .status-table td:nth-child(2) { display: none; }
+            .status-table td { padding: 10px 8px 10px 0; }
+            .col-fn { word-break: normal; overflow-wrap: anywhere; }
+            .col-ts { white-space: normal; }
+            .btn-retry, .btn-dl { padding: 9px 14px; font-size: .78rem; }
+            .file-tab { padding: 9px 18px; }
+            .file-item { flex-wrap: wrap; row-gap: 4px; }
+            .file-name { flex-basis: 100%; }
+            .logbox { font-size: .78rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; }
+        }
     </style>
 </head>
 <body>
@@ -168,6 +206,58 @@
     </div>
 
     {% if saved %}<div class="alert">Settings saved successfully.</div>{% endif %}
+
+    <div class="card">
+        <div class="log-header">
+            <h2 class="log-title">Processing Status</h2>
+            <span class="live-dot">&#9679; live</span>
+        </div>
+        <div class="status-scroll">
+            <table class="status-table">
+                <thead>
+                    <tr>
+                        <th>Filename</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Time</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="status-tbody">
+                    <tr><td colspan="5" class="tbl-empty">No conversions yet &mdash; drop a file into a watched folder and it shows up here.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="log-header">
+            <h2 class="log-title">File Browser</h2>
+            <button class="refresh-btn" onclick="loadFiles()">&#8635; Refresh</button>
+        </div>
+        <div class="file-tabs">
+            <button class="file-tab active" data-tab="books"  onclick="switchTab('books')">Books Out</button>
+            <button class="file-tab"        data-tab="comics" onclick="switchTab('comics')">Comics Out</button>
+        </div>
+        <div class="file-scroll">
+            <div id="file-list"><div class="file-empty">Loading&hellip;</div></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="log-header">
+            <h2 class="log-title">Recent Activity</h2>
+            <span class="live-dot">&#9679; live</span>
+        </div>
+        <div class="logbox" id="logbox">
+{% for line in logs %}{% if 'SUCCESS' in line or 'STARTING' in line %}<span class="log-ok">{{ line }}</span>
+{% elif 'FAILED' in line or 'ERROR' in line %}<span class="log-err">{{ line }}</span>
+{% elif 'CMD:' in line %}<span class="log-cmd">{{ line }}</span>
+{% else %}<span class="log-info">{{ line }}</span>
+{% endif %}{% endfor %}
+        </div>
+    </div>
+
 
     <form method="POST">
     <input type="hidden" name="do_restart" id="do_restart" value="">
@@ -513,57 +603,6 @@
     <button type="submit" class="btn" style="margin-top:0">Save Configuration</button>
     </form>
 
-    <div class="card">
-        <div class="log-header">
-            <h2 class="log-title">Processing Status</h2>
-            <span class="log-refresh" style="color:#3a5c3a">&#9679; live</span>
-        </div>
-        <div class="status-scroll">
-            <table class="status-table">
-                <thead>
-                    <tr>
-                        <th>Filename</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Time</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="status-tbody">
-                    <tr><td colspan="5" class="tbl-empty">No jobs yet.</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="log-header">
-            <h2 class="log-title">File Browser</h2>
-            <button class="refresh-btn" onclick="loadFiles()">&#8635; Refresh</button>
-        </div>
-        <div class="file-tabs">
-            <button class="file-tab active" data-tab="books"  onclick="switchTab('books')">Books Out</button>
-            <button class="file-tab"        data-tab="comics" onclick="switchTab('comics')">Comics Out</button>
-        </div>
-        <div class="file-scroll">
-            <div id="file-list"><div class="file-empty">Loading&hellip;</div></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="log-header">
-            <h2 class="log-title">Recent Activity</h2>
-            <span class="log-refresh" style="color:#3a5c3a">&#9679; live</span>
-        </div>
-        <div class="logbox" id="logbox">
-{% for line in logs %}{% if 'SUCCESS' in line or 'STARTING' in line %}<span class="log-ok">{{ line }}</span>
-{% elif 'FAILED' in line or 'ERROR' in line %}<span class="log-err">{{ line }}</span>
-{% elif 'CMD:' in line %}<span class="log-cmd">{{ line }}</span>
-{% else %}<span class="log-info">{{ line }}</span>
-{% endif %}{% endfor %}
-        </div>
-    </div>
-
 </div>
 
 <div id="restart-overlay"{% if not restarting %} style="display:none"{% endif %}>
@@ -661,7 +700,7 @@
         var tbody = document.getElementById('status-tbody');
         if (!tbody) return;
         if (!jobs.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="tbl-empty">No jobs yet.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="tbl-empty">No conversions yet &mdash; drop a file into a watched folder and it shows up here.</td></tr>';
             return;
         }
         var rows = jobs.map(function(j) {
@@ -711,7 +750,7 @@
         var entries = fileBrowserData[folder] || [];
         if (!entries.length) {
             var label = folder === 'books' ? 'Books_out' : 'Comics_out';
-            container.innerHTML = '<div class="file-empty">No files in ' + label + '</div>';
+            container.innerHTML = '<div class="file-empty">Nothing in ' + label + ' yet &mdash; converted files land here.</div>';
             return;
         }
         var items = entries.map(function(e) {
