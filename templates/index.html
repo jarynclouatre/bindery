@@ -245,10 +245,8 @@
                 <div class="field">
                     <label class="lbl">Output Format</label>
                     <select name="kcc_format">
-                        <option value="EPUB" {% if config.kcc_format == 'EPUB' %}selected{% endif %}>EPUB</option>
-                        <option value="MOBI" {% if config.kcc_format == 'MOBI' %}selected{% endif %}>MOBI</option>
+                        <option value="EPUB" {% if config.kcc_format != 'CBZ' %}selected{% endif %}>EPUB</option>
                         <option value="CBZ"  {% if config.kcc_format == 'CBZ'  %}selected{% endif %}>CBZ</option>
-                        <option value="KFX"  {% if config.kcc_format == 'KFX'  %}selected{% endif %}>KFX</option>
                     </select>
                 </div>
 
@@ -278,9 +276,9 @@
                 </div>
 
                 <div class="field">
-                    <label class="lbl">Cropping Minimum (%)</label>
+                    <label class="lbl">Cropping Minimum (% of page kept)</label>
                     <input type="number" name="kcc_croppingminimum"
-                           step="1" min="0" max="50"
+                           step="1" min="0" max="100"
                            value="{{ config.kcc_croppingminimum }}">
                 </div>
 
@@ -589,7 +587,7 @@
     var lb = document.getElementById('logbox');
     if (lb) lb.scrollTop = lb.scrollHeight;
 
-    var lastLogCount = {{ logs|length }};
+    var lastLogSig = null;
     function getLogClass(l) {
         if (l.indexOf('SUCCESS') !== -1 || l.indexOf('STARTING') !== -1) return 'log-ok';
         if (l.indexOf('FAILED')  !== -1 || l.indexOf('ERROR')    !== -1) return 'log-err';
@@ -598,16 +596,16 @@
     }
     function pollLogs() {
         fetch('/api/logs').then(function(r){return r.json();}).then(function(data){
-            if (data.logs.length <= lastLogCount) return;
+            // The buffer is a fixed-size ring, so length alone can't detect
+            // new lines once it fills — compare the edges too.
+            var logs = data.logs;
+            var sig  = logs.length + '|' + (logs[0] || '') + '|' + (logs[logs.length - 1] || '');
+            if (sig === lastLogSig) return;
+            lastLogSig = sig;
             var atBottom = lb.scrollHeight - lb.scrollTop - lb.clientHeight < 30;
-            data.logs.slice(lastLogCount).forEach(function(line) {
-                var sp = document.createElement('span');
-                sp.className = getLogClass(line);
-                sp.textContent = line;
-                lb.appendChild(sp);
-                lb.appendChild(document.createTextNode('\n'));
-            });
-            lastLogCount = data.logs.length;
+            lb.innerHTML = logs.map(function(line) {
+                return '<span class="' + getLogClass(line) + '">' + escHtml(line) + '</span>';
+            }).join('\n');
             if (atBottom) lb.scrollTop = lb.scrollHeight;
         }).catch(function(){});
     }

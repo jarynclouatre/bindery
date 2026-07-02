@@ -26,6 +26,11 @@ COMIC_EXTS = {'.cbz', '.cbr', '.zip', '.rar', '.pdf'}
 # treating it as ready for KCC. Prevents processing mid-upload.
 FOLDER_STABILITY_SECS = 30
 
+# In inotify mode, a full scan still runs at this interval. Events alone can't
+# finish the job: a folder dropped into Comics_in fires its events while still
+# unstable, and network mounts fire no events at all.
+BACKSTOP_SCAN_SECS = 60
+
 PROCESSING_LOCKS = set()
 lock_mutex        = threading.Lock()
 LOG_BUFFER        = deque(maxlen=300)
@@ -189,14 +194,17 @@ def retry_file(job_id: str) -> bool:
     if not job or job['state'] != 'failed':
         return False
     original    = job['filepath']
-    failed_path = original + '.failed'
+    failed_path = job.get('failed_path') or (original + '.failed')
     if not os.path.exists(failed_path):
+        return False
+    if os.path.exists(original):
+        # Something new was dropped under the original name — don't clobber it.
         return False
     try:
         os.rename(failed_path, original)
     except OSError:
         return False
-    _update_job(job_id, state='queued', error=None, started=None, finished=None)
+    _update_job(job_id, state='queued', error=None, started=None, finished=None, failed_path=None)
     c_type = job['type']
     with lock_mutex:
         if original not in PROCESSING_LOCKS:
@@ -287,20 +295,45 @@ def prune_empty_dirs(file_path: str, stop_at: str) -> None:
             break
 
 
+def _collision_free(dest: str) -> str:
+    """Return dest, or dest with a _2/_3/... suffix if something already lives there."""
+    if not os.path.exists(dest):
+        return dest
+    base, ext = os.path.splitext(dest)
+    counter = 2
+    while True:
+        candidate = f"{base}_{counter}{ext}"
+        if not os.path.exists(candidate):
+            return candidate
+        counter += 1
+
+
+def _rename_failed(path: str) -> str | None:
+    """Rename a failed source to <path>.failed without clobbering earlier failures.
+
+    Collisions become <path>_2.failed etc. so the name always ends in .failed
+    and stays invisible to the scanners. Returns the new path, or None if the
+    rename itself failed (source vanished, permissions).
+    """
+    candidate = path + '.failed'
+    counter = 2
+    while os.path.exists(candidate):
+        candidate = f"{path}_{counter}.failed"
+        counter += 1
+    try:
+        os.rename(path, candidate)
+        return candidate
+    except OSError:
+        return None
+
+
 def move_output_file(produced_file: str, target_dir: str) -> None:
     """Move a single conversion output to target_dir, applying any needed renaming."""
     filename = os.path.basename(produced_file)
     if filename.endswith('.kepub.epub'):
         filename = filename[:-len('.kepub.epub')] + '.kepub'
     os.makedirs(target_dir, exist_ok=True)
-    candidate = os.path.join(target_dir, filename)
-    if os.path.exists(candidate):
-        base, ext = os.path.splitext(filename)
-        counter = 2
-        while os.path.exists(candidate):
-            candidate = os.path.join(target_dir, f"{base}_{counter}{ext}")
-            counter += 1
-    shutil.move(produced_file, candidate)
+    shutil.move(produced_file, _collision_free(os.path.join(target_dir, filename)))
 
 
 class ConversionError(Exception):
@@ -325,14 +358,24 @@ def _run_conversion(cmd: list[str], short: str) -> None:
 
 def _build_kcc_cmd(config: ConfigDict, filepath: str, temp_out: str) -> list[str]:
     """Build and return the kcc-c2e argument list from the current config."""
+    # MOBI needs kindlegen and KFX needs a Calibre plugin — neither exists in
+    # this container, so configs that predate their removal fall back to EPUB.
+    fmt = config['kcc_format'] if config['kcc_format'] in ('EPUB', 'CBZ') else 'EPUB'
+
+    # The UI takes cropping minimum as a percentage; kcc-c2e wants a 0-1 ratio.
+    try:
+        crop_min = float(config['kcc_croppingminimum']) / 100
+    except (TypeError, ValueError):
+        crop_min = 0.0
+
     cmd = [
         'kcc-c2e',
         '--profile',         config['kcc_profile'],
-        '--format',          config['kcc_format'],
+        '--format',          fmt,
         '--splitter',        config['kcc_splitter'],
         '--cropping',        config['kcc_cropping'],
         '--croppingpower',   config['kcc_croppingpower'],
-        '--croppingminimum', config['kcc_croppingminimum'],
+        '--croppingminimum', str(crop_min),
         '--batchsplit',      config['kcc_batchsplit'],
         '--output',          temp_out,
     ]
@@ -423,7 +466,7 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
                 if c_type == 'comic' and config.get('preserve_originals', False):
                     _dest = os.path.join(COMICS_ARCHIVE, os.path.relpath(filepath, COMICS_IN))
                     os.makedirs(os.path.dirname(_dest), exist_ok=True)
-                    shutil.move(filepath, _dest)
+                    shutil.move(filepath, _collision_free(_dest))
                 else:
                     os.remove(filepath)
                 prune_empty_dirs(filepath, in_base)
@@ -434,24 +477,22 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             _notify('success', os.path.basename(filepath))
         else:
             log(f">>> FAILED (no output file found): {short}")
-            if os.path.exists(filepath):
-                os.rename(filepath, filepath + '.failed')
-            _update_job(job_id, state='failed', finished=_now(), error='no output produced')
+            failed_path = _rename_failed(filepath) if os.path.exists(filepath) else None
+            _update_job(job_id, state='failed', finished=_now(),
+                        error='no output produced', failed_path=failed_path)
             _notify('failure', os.path.basename(filepath), 'no output produced')
 
     except ConversionError as e:
         msg = f'exit {e.returncode}'
         log(f">>> FAILED ({msg}): {short}")
-        if os.path.exists(filepath):
-            os.rename(filepath, filepath + '.failed')
-        _update_job(job_id, state='failed', finished=_now(), error=msg)
+        failed_path = _rename_failed(filepath) if os.path.exists(filepath) else None
+        _update_job(job_id, state='failed', finished=_now(), error=msg, failed_path=failed_path)
         _notify('failure', os.path.basename(filepath), msg)
     except Exception as e:
         msg = str(e)
         log(f">>> ERROR: {short} — {msg}")
-        if os.path.exists(filepath):
-            os.rename(filepath, filepath + '.failed')
-        _update_job(job_id, state='failed', finished=_now(), error=msg)
+        failed_path = _rename_failed(filepath) if os.path.exists(filepath) else None
+        _update_job(job_id, state='failed', finished=_now(), error=msg, failed_path=failed_path)
         _notify('failure', os.path.basename(filepath), msg)
     finally:
         shutil.rmtree(temp_out, ignore_errors=True)
@@ -500,7 +541,7 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
                 if config.get('preserve_originals', False):
                     _dest = os.path.join(COMICS_ARCHIVE, os.path.basename(folderpath))
                     os.makedirs(COMICS_ARCHIVE, exist_ok=True)
-                    shutil.move(folderpath, _dest)
+                    shutil.move(folderpath, _collision_free(_dest))
                 else:
                     shutil.rmtree(folderpath)
             count  = len(produced)
@@ -510,24 +551,22 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
             _notify('success', short + '/')
         else:
             log(f">>> FAILED (no output file found): {short}/")
-            if os.path.exists(folderpath):
-                os.rename(folderpath, folderpath + '.failed')
-            _update_job(job_id, state='failed', finished=_now(), error='no output produced')
+            failed_path = _rename_failed(folderpath) if os.path.exists(folderpath) else None
+            _update_job(job_id, state='failed', finished=_now(),
+                        error='no output produced', failed_path=failed_path)
             _notify('failure', short + '/', 'no output produced')
 
     except ConversionError as e:
         msg = f'exit {e.returncode}'
         log(f">>> FAILED ({msg}): {short}/")
-        if os.path.exists(folderpath):
-            os.rename(folderpath, folderpath + '.failed')
-        _update_job(job_id, state='failed', finished=_now(), error=msg)
+        failed_path = _rename_failed(folderpath) if os.path.exists(folderpath) else None
+        _update_job(job_id, state='failed', finished=_now(), error=msg, failed_path=failed_path)
         _notify('failure', short + '/', msg)
     except Exception as e:
         msg = str(e)
         log(f">>> ERROR: {short}/ — {msg}")
-        if os.path.exists(folderpath):
-            os.rename(folderpath, folderpath + '.failed')
-        _update_job(job_id, state='failed', finished=_now(), error=msg)
+        failed_path = _rename_failed(folderpath) if os.path.exists(folderpath) else None
+        _update_job(job_id, state='failed', finished=_now(), error=msg, failed_path=failed_path)
         _notify('failure', short + '/', msg)
     finally:
         shutil.rmtree(temp_out, ignore_errors=True)
@@ -600,8 +639,9 @@ def inotify_watch_loop() -> None:
     wait_for_file_ready still runs inside process_file, so partial writes
     from direct-write clients are tolerated.
 
-    NOTE: inotify only fires for local filesystems. NFS, SMB/CIFS, and most
-    SFTP mounts will not generate events — use poll mode for those setups.
+    inotify does not fire for NFS/SMB mounts, and folder jobs are usually not
+    stable yet when their events arrive, so a slow backstop scan runs every
+    BACKSTOP_SCAN_SECS to catch anything the events missed.
     """
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
@@ -618,6 +658,15 @@ def inotify_watch_loop() -> None:
                 return
             if any(part.startswith('.') for part in path.split(os.sep) if part):
                 return
+            if self.c_type == 'comic':
+                rel = os.path.relpath(os.path.abspath(path), os.path.abspath(COMICS_IN))
+                parts = rel.split(os.sep)
+                if len(parts) > 1:
+                    # The file lives inside a top-level folder, which is a
+                    # bundled folder job — never convert its contents
+                    # individually. Poke the folder job instead.
+                    self._maybe_dispatch_dir(os.path.join(COMICS_IN, parts[0]))
+                    return
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:
                     PROCESSING_LOCKS.add(path)
@@ -672,9 +721,11 @@ def inotify_watch_loop() -> None:
     observer.start()
     try:
         while True:
-            time.sleep(1)
-    except Exception:
-        pass
+            time.sleep(BACKSTOP_SCAN_SECS)
+            try:
+                scan_directories()
+            except Exception as e:
+                log(f">>> SCAN ERROR: {e}")
     finally:
         observer.stop()
         observer.join()

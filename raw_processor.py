@@ -174,10 +174,15 @@ def raw_inotify_watch_loop() -> None:
     Triggers scan_raw_directories() immediately when anything appears in
     Comics_raw. The 30-second stability check inside is_folder_stable still
     runs on every trigger, so partially-transferred folders are never processed
-    early — inotify just removes the 10-second polling delay.
+    early. Because the last event of a slow copy arrives while the folder is
+    still unstable, a backstop scan also runs every BACKSTOP_SCAN_SECS —
+    otherwise that folder would sit unprocessed until the next event or
+    container restart.
     """
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
+
+    from processor import BACKSTOP_SCAN_SECS
 
     class _RawHandler(FileSystemEventHandler):
         def _trigger(self) -> None:
@@ -198,9 +203,11 @@ def raw_inotify_watch_loop() -> None:
     observer.start()
     try:
         while True:
-            time.sleep(1)
-    except Exception:
-        pass
+            time.sleep(BACKSTOP_SCAN_SECS)
+            try:
+                scan_raw_directories()
+            except Exception as e:
+                log(f">>> RAW SCAN ERROR: {e}")
     finally:
         observer.stop()
         observer.join()

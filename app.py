@@ -30,7 +30,7 @@ def _clamp(value: object, min_val: float, max_val: float, default: float) -> str
 def _validate_post(config: ConfigDict) -> ConfigDict:
     """Clamp numeric fields to their valid ranges after reading from the form."""
     config['kcc_croppingpower']   = _clamp(config['kcc_croppingpower'],   0.1, 2.0, 1.0)
-    config['kcc_croppingminimum'] = _clamp(config['kcc_croppingminimum'],   0,  50,  1)
+    config['kcc_croppingminimum'] = _clamp(config['kcc_croppingminimum'],   0, 100,  0)
     for key in ('kcc_customwidth', 'kcc_customheight'):
         val = config[key].strip()
         if val:
@@ -48,7 +48,9 @@ def _validate_post(config: ConfigDict) -> ConfigDict:
         'KoN', 'KoF', 'KoS', 'KoC', 'KoCC', 'KoL', 'KoLC', 'KoE',
         'Rmk1', 'Rmk2', 'RmkPP', 'RmkPPMove', 'OTHER',
     }
-    _VALID_FORMAT     = {'EPUB', 'MOBI', 'CBZ', 'KFX'}
+    # MOBI needs kindlegen and KFX needs a Calibre plugin — neither can ship
+    # in this image, so only formats that actually convert are accepted.
+    _VALID_FORMAT     = {'EPUB', 'CBZ'}
     _VALID_CROPPING   = {'0', '1', '2'}
     _VALID_SPLITTER   = {'0', '1', '2', '3', '4'}
     _VALID_BATCHSPLIT = {'0', '1', '2'}

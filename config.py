@@ -26,7 +26,7 @@ DEFAULT_CONFIG: ConfigDict = {
     'kcc_rotate':            False,
     'kcc_cropping':          '2',
     'kcc_croppingpower':     '1.0',
-    'kcc_croppingminimum':   '1',
+    'kcc_croppingminimum':   '0',
     'kcc_splitter':          '1',
     'kcc_gamma':             '0',
     'kcc_format':            'EPUB',
