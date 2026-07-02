@@ -40,7 +40,7 @@ bindery/
 ├── books_in/        ← drop .epub files here (Kobo users only)
 ├── books_out/       ← converted .kepub files appear here
 ├── comics_in/       ← drop .cbz / .cbr / .zip / .rar / .pdf here
-│   ├── Some Series/ ← a folder here becomes ONE bundled volume (files inside = chapters)
+│   ├── Some Series/ ← a folder of images becomes ONE bundled volume (subfolders = chapters)
 │   └── .archive/    ← originals preserved here when Preserve Originals is enabled
 ├── comics_out/      ← converted files appear here
 ├── comics_raw/      ← drop a flat folder of images here; Bindery zips it to CBZ and processes it automatically
@@ -49,7 +49,7 @@ bindery/
 └── config/          ← settings.json and jobs.json persisted here
 ```
 
-All folders are created automatically on first run. Books keep their subfolder structure — `books_in/Tolkien/hobbit.epub` converts to `books_out/Tolkien/hobbit.kepub`. Comics work differently: loose files in the root of `comics_in` convert individually, while a folder is treated as one volume — every archive inside becomes a chapter and KCC produces a single file named after the folder.
+All folders are created automatically on first run. Books keep their subfolder structure — `books_in/Tolkien/hobbit.epub` converts to `books_out/Tolkien/hobbit.kepub`. For comics it depends on what a folder contains: a folder of **images** is treated as one volume (subfolders become chapters, output named after the folder), while archives — loose or inside folders — convert individually with subfolder structure preserved.
 
 ---
 
@@ -140,8 +140,8 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 
 - Bindery watches `/Books_in`, `/Comics_in` and `/Comics_raw` using either **poll** mode (every 10 s, NAS/SMB/NFS compatible) or **inotify** mode (instant on local filesystems, with a 60 s backstop scan for anything events miss).
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
-- Book subfolder structure is preserved — `Books_in/Tolkien/hobbit.epub` converts to `Books_out/Tolkien/hobbit.kepub`.
-- A folder dropped into `Comics_in` is one bundled job: its files become chapters of a single volume named after the folder. Processing starts once nothing inside has changed for 30 s.
+- Subfolder structure is preserved for individually converted files — `Comics_in/Marvel/issue01.cbz` converts to `Comics_out/Marvel/issue01.kepub`, and books work the same way.
+- A folder of images dropped into `Comics_in` is one bundled job: a single volume named after the folder, with subfolders as chapters. Processing starts once nothing inside has changed for 30 s.
 - On success: converted file is moved to the output folder. The source is deleted, or moved to `Comics_in/.archive` if **Preserve Originals** is enabled.
 - On failure: the source is renamed to `<filename>.failed` and will not be retried automatically. Use the Retry button in the WebUI to re-queue it.
 - Raw image folders in `Comics_raw` are held until stable (no file changes for 30 s) before processing begins.

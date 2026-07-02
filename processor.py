@@ -574,9 +574,18 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
             PROCESSING_LOCKS.discard(folderpath)
 
 
+def _contains_comic_archives(dirpath: str) -> bool:
+    """True if any file under dirpath has a comic archive extension."""
+    for _root, _dirs, files in os.walk(dirpath):
+        for f in files:
+            if os.path.splitext(f)[1].lower() in COMIC_EXTS:
+                return True
+    return False
+
+
 def scan_directories() -> None:
     for root, dirs, files in os.walk(BOOKS_IN):
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        dirs[:] = [d for d in dirs if not d.startswith('.') and not d.endswith('.failed')]
         for f in files:
             if os.path.splitext(f)[1].lower() in BOOK_EXTS and not f.endswith('.failed'):
                 path = os.path.join(root, f)
@@ -586,9 +595,9 @@ def scan_directories() -> None:
                         threading.Thread(target=process_file,
                                          args=(path, 'book'), daemon=True).start()
 
-    # Dispatch any top-level Comics_in subdirectory as a bundled KCC job.
-    # These are collected first so the file walk below can skip them — we don't
-    # want to also process individual chapter files inside a folder job.
+    # Dispatch top-level Comics_in image folders as bundled KCC jobs. Folders
+    # that contain archives are left to the per-file walk below instead — KCC
+    # rejects nested archives ("No images detected") when given such a folder.
     folder_job_names: set[str] = set()
     try:
         top_entries = os.listdir(COMICS_IN)
@@ -598,7 +607,7 @@ def scan_directories() -> None:
         if entry.startswith('.') or entry.endswith('.failed'):
             continue
         full = os.path.join(COMICS_IN, entry)
-        if not os.path.isdir(full):
+        if not os.path.isdir(full) or _contains_comic_archives(full):
             continue
         folder_job_names.add(entry)
         with lock_mutex:
@@ -608,9 +617,10 @@ def scan_directories() -> None:
 
     for root, dirs, files in os.walk(COMICS_IN):
         if root == COMICS_IN:
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in folder_job_names]
+            dirs[:] = [d for d in dirs if not d.startswith('.') and not d.endswith('.failed')
+                       and d not in folder_job_names]
         else:
-            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            dirs[:] = [d for d in dirs if not d.startswith('.') and not d.endswith('.failed')]
         for f in files:
             if os.path.splitext(f)[1].lower() in COMIC_EXTS and not f.endswith('.failed'):
                 path = os.path.join(root, f)
@@ -654,19 +664,20 @@ def inotify_watch_loop() -> None:
         def _maybe_dispatch(self, path: str) -> None:
             if os.path.splitext(path)[1].lower() not in self.exts:
                 return
-            if path.endswith('.failed'):
-                return
-            if any(part.startswith('.') for part in path.split(os.sep) if part):
+            if any(part.startswith('.') or part.endswith('.failed')
+                   for part in path.split(os.sep) if part):
                 return
             if self.c_type == 'comic':
                 rel = os.path.relpath(os.path.abspath(path), os.path.abspath(COMICS_IN))
                 parts = rel.split(os.sep)
                 if len(parts) > 1:
-                    # The file lives inside a top-level folder, which is a
-                    # bundled folder job — never convert its contents
-                    # individually. Poke the folder job instead.
-                    self._maybe_dispatch_dir(os.path.join(COMICS_IN, parts[0]))
-                    return
+                    top = os.path.join(COMICS_IN, parts[0])
+                    if not _contains_comic_archives(top):
+                        # Pure image folder — it's one bundled volume, never
+                        # converted piecemeal. Poke the folder job instead.
+                        self._maybe_dispatch_dir(top)
+                        return
+                    # Folders holding archives convert per-file; fall through.
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:
                     PROCESSING_LOCKS.add(path)
@@ -683,6 +694,9 @@ def inotify_watch_loop() -> None:
                 return
             base = os.path.basename(path)
             if base.startswith('.') or base.endswith('.failed'):
+                return
+            if _contains_comic_archives(path):
+                # Archives inside convert per-file — KCC can't bundle them.
                 return
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:

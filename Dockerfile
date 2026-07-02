@@ -38,7 +38,8 @@ RUN ln -sf /usr/bin/7z /usr/local/bin/7za \
  && ln -sf /usr/bin/7z /usr/local/bin/7zr || true
 
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt \
+ && pip install --no-cache-dir --no-deps git+https://github.com/ciromattia/kcc.git@v10.3.0
 
 RUN mkdir -p /app /app/config /Comics_in /Comics_out /Books_in /Books_out /Comics_raw
 

@@ -468,18 +468,13 @@ def test_scan_directories_skips_dot_folders(tmp_path):
 
 # ── Comics_in folder jobs ─────────────────────────────────────────────────────
 
-def test_scan_directories_dispatches_topdir_as_folder_job(tmp_path):
-    """A top-level Comics_in directory becomes one bundled job; its contents
-    must never also be dispatched as individual files."""
+def _scan_dispatches(tmp_path, setup):
+    """Run scan_directories against a temp tree, return {path: target} of dispatches."""
     comics_in = tmp_path / 'comics_in'
     books_in  = tmp_path / 'books_in'
-    folder    = comics_in / 'Batman'
     comics_in.mkdir()
     books_in.mkdir()
-    folder.mkdir()
-    (folder / 'ch1.cbz').write_bytes(b'x')
-    (folder / 'ch2.cbz').write_bytes(b'x')
-    (comics_in / 'loose.cbz').write_bytes(b'x')
+    setup(comics_in)
 
     dispatched = []
     with patch.object(processor, 'COMICS_IN', str(comics_in)), \
@@ -489,11 +484,46 @@ def test_scan_directories_dispatches_topdir_as_folder_job(tmp_path):
         mock_threading.Thread = MagicMock(side_effect=_fake_thread)
         processor.PROCESSING_LOCKS.clear()
         processor.scan_directories()
+    return comics_in, {args[0]: target for target, args in dispatched}
 
-    targets = {args[0]: target for target, args in dispatched}
-    assert targets.get(str(folder)) is processor.process_folder
-    assert str(comics_in / 'loose.cbz') in targets
-    assert not any('ch1.cbz' in p or 'ch2.cbz' in p for p in targets)
+
+def test_scan_directories_image_folder_becomes_folder_job(tmp_path):
+    """A top-level folder of images is one bundled KCC volume."""
+    def setup(comics_in):
+        folder = comics_in / 'Batman'
+        folder.mkdir()
+        (folder / 'p1.jpg').write_bytes(b'x')
+        (folder / 'p2.jpg').write_bytes(b'x')
+        (comics_in / 'loose.cbz').write_bytes(b'x')
+    comics_in, targets = _scan_dispatches(tmp_path, setup)
+    assert targets.get(str(comics_in / 'Batman')) is processor.process_folder
+    assert targets.get(str(comics_in / 'loose.cbz')) is processor.process_file
+
+
+def test_scan_directories_archive_folder_converts_per_file(tmp_path):
+    """KCC rejects nested archives, so a folder holding .cbz files must be
+    converted file-by-file (preserving structure), never as a folder job."""
+    def setup(comics_in):
+        folder = comics_in / 'My Series'
+        folder.mkdir()
+        (folder / 'ch1.cbz').write_bytes(b'x')
+        (folder / 'ch2.cbz').write_bytes(b'x')
+    comics_in, targets = _scan_dispatches(tmp_path, setup)
+    folder = comics_in / 'My Series'
+    assert str(folder) not in targets
+    assert targets.get(str(folder / 'ch1.cbz')) is processor.process_file
+    assert targets.get(str(folder / 'ch2.cbz')) is processor.process_file
+
+
+def test_scan_directories_never_descends_into_failed_folders(tmp_path):
+    """Archives inside a <name>.failed folder must not be converted — that
+    silently consumes a failed job's source files."""
+    def setup(comics_in):
+        failed = comics_in / 'My Series.failed'
+        failed.mkdir()
+        (failed / 'ch1.cbz').write_bytes(b'x')
+    _, targets = _scan_dispatches(tmp_path, setup)
+    assert targets == {}
 
 
 def test_process_folder_success_removes_source(tmp_path):

@@ -1,13 +1,17 @@
 ## v3.4.0 — Folder Volumes, Format Cleanup & Watcher Fixes
 
-- Added: drop a folder into `Comics_in` and it converts as one bundled volume — the files inside become chapters and the output is named after the folder; works with Retry and Preserve Originals
+- Added: drop a folder of images into `Comics_in` and it converts as one bundled volume named after the folder (subfolders become chapters); folders containing comic archives convert file-by-file with structure preserved instead, since KCC rejects nested archives — both work with Retry and Preserve Originals
+- Fixed: the scanner descended into `<name>.failed` folders and converted the archives inside, silently consuming a failed job's source files — `.failed` directories are now excluded everywhere
 - Removed: `MOBI` and `KFX` output formats — MOBI needs Amazon's abandoned kindlegen binary and KFX a Calibre plugin, neither of which exists in the image, so every such conversion failed; saved configs fall back to `EPUB`, which Kindles accept via Send to Kindle
 - Fixed: **Cropping Minimum** was sent to KCC unconverted, but KCC expects a 0–1 ratio rather than a percentage — the old default of `1` suppressed cropping entirely; the value is now divided by 100 and the default is `0`
 - Fixed: inotify mode never processed `Comics_in` folder jobs (their events fire while the folder is still copying) and could convert-and-delete files inside a folder job individually; folder contents now route to their folder job, and a 60 s backstop scan catches whatever events miss — which also un-strands files on network mounts and slow `Comics_raw` copies
 - Fixed: repeated failures no longer collide — `.failed` renames pick a free name (`X_2.failed`), the job remembers the real path so Retry still finds it, and Retry refuses to overwrite a newly dropped file with the same name
 - Fixed: Preserve Originals archive moves are collision-safe instead of overwriting files or nesting folders
 - Fixed: the live activity log froze once its 300-line buffer filled — the WebUI now detects buffer rotation, not just growth
+- Updated: KCC `v9.4.3` → `v10.3.0` — better PDF handling (rasterised via PyMuPDF instead of extracting embedded JPEGs) plus two years of upstream image-processing fixes; all flags, device profiles, and behaviour Bindery relies on verified unchanged
+- Improved: KCC is now installed without its GUI dependency chain — PySide6/Qt never belonged in a headless image and dropping it makes the image several hundred MB smaller
 - Removed: stale `patch.py` release script and the unused `packaging` dependency; gunicorn is pinned `>=25.1` for `--no-control-socket`
+- Updated: GitHub Actions bumped to current majors (checkout v5, setup-python v6, docker actions v4/v6/v7)
 
 ## v3.3.1 — Fix Startup Crash When SKIP_CHOWN Unset
 
