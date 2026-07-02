@@ -460,7 +460,7 @@
                     <label class="lbl">Watcher Mode</label>
                     <select name="watcher_mode" id="watcher_mode">
                         <option value="poll"    {% if config.watcher_mode == "poll"    %}selected{% endif %}>Poll (every 10 s)</option>
-                        <option value="inotify" {% if config.watcher_mode == "inotify" %}selected{% endif %}>inotify (instant, local filesystems only)</option>
+                        <option value="inotify" {% if config.watcher_mode == "inotify" %}selected{% endif %}>inotify (instant + 60 s backstop)</option>
                     </select>
                 </div>
                 <p class="note">Poll works everywhere including network shares (NFS, SMB). inotify is instant on local filesystems; a 60&nbsp;s backstop scan covers network mounts and anything else events miss.</p>
