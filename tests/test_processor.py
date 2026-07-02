@@ -109,7 +109,6 @@ def test_process_file_flags_failed_when_no_output(tmp_path):
 
 
 def test_build_kcc_cmd_basic(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     filepath = str(tmp_path / 'test.cbz')
     cmd = processor._build_kcc_cmd(config, filepath, '/tmp/out')
@@ -121,7 +120,6 @@ def test_build_kcc_cmd_basic(tmp_path):
 
 
 def test_build_kcc_cmd_gamma_zero_omitted(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_gamma'] = '0'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
@@ -129,7 +127,6 @@ def test_build_kcc_cmd_gamma_zero_omitted(tmp_path):
 
 
 def test_build_kcc_cmd_gamma_nonzero_included(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_gamma'] = '1.8'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
@@ -138,7 +135,6 @@ def test_build_kcc_cmd_gamma_nonzero_included(tmp_path):
 
 
 def test_build_kcc_cmd_black_borders(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_borders'] = 'black'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
@@ -147,7 +143,6 @@ def test_build_kcc_cmd_black_borders(tmp_path):
 
 
 def test_build_kcc_cmd_white_borders(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_borders'] = 'white'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
@@ -156,7 +151,6 @@ def test_build_kcc_cmd_white_borders(tmp_path):
 
 
 def test_build_kcc_cmd_no_borders(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_borders'] = 'none'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
@@ -165,7 +159,6 @@ def test_build_kcc_cmd_no_borders(tmp_path):
 
 
 def test_build_kcc_cmd_other_profile_custom_dims(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_profile']      = 'OTHER'
     config['kcc_customwidth']  = '1264'
@@ -176,7 +169,6 @@ def test_build_kcc_cmd_other_profile_custom_dims(tmp_path):
 
 
 def test_build_kcc_cmd_non_other_profile_ignores_custom_dims(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_profile']      = 'KPW5'
     config['kcc_customwidth']  = '1264'
@@ -187,7 +179,6 @@ def test_build_kcc_cmd_non_other_profile_ignores_custom_dims(tmp_path):
 
 
 def test_build_kcc_cmd_metadatatitle_uses_filename(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_metadatatitle'] = True
     filepath = str(tmp_path / 'My Comic.cbz')
@@ -197,12 +188,27 @@ def test_build_kcc_cmd_metadatatitle_uses_filename(tmp_path):
 
 
 def test_build_kcc_cmd_author_included(tmp_path):
-    from config import DEFAULT_CONFIG
     config = dict(DEFAULT_CONFIG)
     config['kcc_author'] = 'Frank Miller'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
     assert '--author' in cmd
     assert 'Frank Miller' in cmd
+
+
+def test_build_kcc_cmd_croppingminimum_percent_to_ratio(tmp_path):
+    """The UI stores a percentage; kcc-c2e expects a 0-1 ratio."""
+    config = dict(DEFAULT_CONFIG)
+    config['kcc_croppingminimum'] = '75'
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
+    assert cmd[cmd.index('--croppingminimum') + 1] == '0.75'
+
+
+def test_build_kcc_cmd_legacy_mobi_falls_back_to_epub(tmp_path):
+    """Configs saved before MOBI was removed must not produce a broken command."""
+    config = dict(DEFAULT_CONFIG)
+    config['kcc_format'] = 'MOBI'
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
+    assert cmd[cmd.index('--format') + 1] == 'EPUB'
 
 
 def test_process_file_conversion_error(tmp_path):
@@ -352,11 +358,10 @@ def test_notify_failure_fires_with_error_in_body():
     assert 'exit 1' in mock_instance.notify.call_args.kwargs['body']
 
 
-# --- v3.0.2: wait_for_file_ready stability tests ---
+# ── wait_for_file_ready ──────────────────────────────────────────────────────
 
 def test_wait_for_file_ready_requires_three_stable_reads(tmp_path):
     """Three consecutive identical sizes are required before returning True."""
-    from unittest.mock import patch
     f = tmp_path / "comic.cbz"
     f.write_bytes(b"data")
     sizes = [1000, 1000, 1000, 1000]  # set last_size, then 3 matches
@@ -367,7 +372,6 @@ def test_wait_for_file_ready_requires_three_stable_reads(tmp_path):
 
 def test_wait_for_file_ready_two_stable_not_enough(tmp_path):
     """Two stable readings followed by timeout must return False."""
-    from unittest.mock import patch
     f = tmp_path / "comic.cbz"
     f.write_bytes(b"data")
     sizes = [1000, 1000]  # timeout=3 => 2 loop iterations, never reaches 3
@@ -378,7 +382,6 @@ def test_wait_for_file_ready_two_stable_not_enough(tmp_path):
 
 def test_wait_for_file_ready_resets_on_size_change(tmp_path):
     """A size change mid-sequence resets the stable counter to zero."""
-    from unittest.mock import patch
     f = tmp_path / "comic.cbz"
     f.write_bytes(b"data")
     sizes = [1000, 1000, 2000, 2000, 2000, 2000]  # 2 stable, grows, then 3 stable
@@ -389,7 +392,6 @@ def test_wait_for_file_ready_resets_on_size_change(tmp_path):
 
 def test_wait_for_file_ready_oserror_resets_counter(tmp_path):
     """An OSError during polling resets the stable counter."""
-    from unittest.mock import patch
     f = tmp_path / "comic.cbz"
     f.write_bytes(b"data")
     sizes = [OSError("busy"), 1000, 1000, 1000, 1000]  # error, then 3 stable
@@ -462,3 +464,104 @@ def test_scan_directories_skips_dot_folders(tmp_path):
         processor.scan_directories()
 
     mock_threading.Thread.assert_not_called()
+
+
+# ── Comics_in folder jobs ─────────────────────────────────────────────────────
+
+def test_scan_directories_dispatches_topdir_as_folder_job(tmp_path):
+    """A top-level Comics_in directory becomes one bundled job; its contents
+    must never also be dispatched as individual files."""
+    comics_in = tmp_path / 'comics_in'
+    books_in  = tmp_path / 'books_in'
+    folder    = comics_in / 'Batman'
+    comics_in.mkdir()
+    books_in.mkdir()
+    folder.mkdir()
+    (folder / 'ch1.cbz').write_bytes(b'x')
+    (folder / 'ch2.cbz').write_bytes(b'x')
+    (comics_in / 'loose.cbz').write_bytes(b'x')
+
+    dispatched = []
+    with patch.object(processor, 'COMICS_IN', str(comics_in)), \
+         patch.object(processor, 'BOOKS_IN',  str(books_in)), \
+         patch('processor.threading') as mock_threading:
+        def _fake_thread(target, args, daemon): dispatched.append((target, args)); return MagicMock()
+        mock_threading.Thread = MagicMock(side_effect=_fake_thread)
+        processor.PROCESSING_LOCKS.clear()
+        processor.scan_directories()
+
+    targets = {args[0]: target for target, args in dispatched}
+    assert targets.get(str(folder)) is processor.process_folder
+    assert str(comics_in / 'loose.cbz') in targets
+    assert not any('ch1.cbz' in p or 'ch2.cbz' in p for p in targets)
+
+
+def test_process_folder_success_removes_source(tmp_path):
+    comics_in = tmp_path / 'comics_in'
+    folder    = comics_in / 'Batman'
+    comics_in.mkdir()
+    folder.mkdir()
+    (folder / 'p1.jpg').write_bytes(b'x')
+    fake_out = tmp_path / 'fake.epub'
+    fake_out.write_bytes(b'epub')
+
+    with patch.object(processor, 'COMICS_OUT', str(tmp_path / 'out')), \
+         patch('processor.load_config', return_value=dict(DEFAULT_CONFIG)), \
+         patch('processor._is_dir_stable', return_value=True), \
+         patch('processor._run_conversion', return_value=None), \
+         patch('processor.get_output_files', return_value=[str(fake_out)]), \
+         patch('processor.move_output_file', return_value=None):
+        processor.process_folder(str(folder))
+
+    assert not folder.exists()
+    job = list(processor.JOB_REGISTRY.values())[0]
+    assert job['state'] == 'success'
+
+
+def test_process_folder_preserve_originals_archives(tmp_path):
+    comics_in = tmp_path / 'comics_in'
+    archive   = comics_in / '.archive'
+    folder    = comics_in / 'Batman'
+    comics_in.mkdir()
+    folder.mkdir()
+    (folder / 'p1.jpg').write_bytes(b'x')
+    fake_out = tmp_path / 'fake.epub'
+    fake_out.write_bytes(b'epub')
+    config = dict(DEFAULT_CONFIG)
+    config['preserve_originals'] = True
+
+    with patch.object(processor, 'COMICS_ARCHIVE', str(archive)), \
+         patch.object(processor, 'COMICS_OUT', str(tmp_path / 'out')), \
+         patch('processor.load_config', return_value=config), \
+         patch('processor._is_dir_stable', return_value=True), \
+         patch('processor._run_conversion', return_value=None), \
+         patch('processor.get_output_files', return_value=[str(fake_out)]), \
+         patch('processor.move_output_file', return_value=None):
+        processor.process_folder(str(folder))
+
+    assert not folder.exists()
+    assert (archive / 'Batman' / 'p1.jpg').exists()
+
+
+def test_process_folder_failure_keeps_earlier_failed_folder(tmp_path):
+    """A second failure must not collide with (or destroy) an existing .failed folder."""
+    comics_in = tmp_path / 'comics_in'
+    folder    = comics_in / 'Batman'
+    old       = comics_in / 'Batman.failed'
+    comics_in.mkdir()
+    folder.mkdir()
+    old.mkdir()
+    (old / 'keep.jpg').write_bytes(b'old attempt')
+    (folder / 'p1.jpg').write_bytes(b'x')
+
+    with patch.object(processor, 'COMICS_OUT', str(tmp_path / 'out')), \
+         patch('processor.load_config', return_value=dict(DEFAULT_CONFIG)), \
+         patch('processor._is_dir_stable', return_value=True), \
+         patch('processor._run_conversion', side_effect=processor.ConversionError(1)):
+        processor.process_folder(str(folder))
+
+    assert (old / 'keep.jpg').exists()
+    assert (comics_in / 'Batman_2.failed' / 'p1.jpg').exists()
+    job = list(processor.JOB_REGISTRY.values())[0]
+    assert job['state'] == 'failed'
+    assert job['failed_path'] == str(comics_in / 'Batman_2.failed')

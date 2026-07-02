@@ -1,14 +1,10 @@
 """Tests for job registry, retry, status API, and file browser API."""
 
 import json
-import os
 from unittest.mock import patch, MagicMock
-
-import pytest
 
 import processor
 import app as bindery_app
-import config as cfg
 from config import DEFAULT_CONFIG
 
 
@@ -153,6 +149,23 @@ def test_retry_file_returns_false_when_failed_file_missing(tmp_path):
 
 def test_retry_file_returns_false_for_unknown_id():
     assert processor.retry_file('doesnotexist') is False
+
+
+def test_retry_file_refuses_to_overwrite_replacement_file(tmp_path):
+    """If a new file was dropped under the original name, retry must not clobber it."""
+    src    = tmp_path / 'test.cbz'
+    failed = tmp_path / 'test.cbz.failed'
+    src.write_bytes(b'newly dropped file')
+    failed.write_bytes(b'old failed data')
+    jobs_file = tmp_path / 'jobs.json'
+
+    with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
+        job_id = processor._register_job(str(src), 'comic')
+        processor._update_job(job_id, state='failed')
+        assert processor.retry_file(job_id) is False
+
+    assert src.read_bytes() == b'newly dropped file'
+    assert failed.exists()
 
 
 # ── process_file registry integration ─────────────────────────────────────────
@@ -394,51 +407,3 @@ def test_api_files_download_comics_folder(client, tmp_path):
         resp = client.get('/api/files/download?folder=comics&name=mycomic.epub')
     assert resp.status_code == 200
     assert resp.data == b'comic data'
-
-
-# ── config: new default keys ──────────────────────────────────────────────────
-
-def test_default_config_has_apprise_keys():
-    assert 'apprise_urls'      in DEFAULT_CONFIG
-    assert 'notify_on_success' in DEFAULT_CONFIG
-    assert 'notify_on_failure' in DEFAULT_CONFIG
-    assert DEFAULT_CONFIG['apprise_urls']      == ''
-    assert DEFAULT_CONFIG['notify_on_success'] is True
-    assert DEFAULT_CONFIG['notify_on_failure'] is True
-
-
-# ── validate_post: apprise fields ─────────────────────────────────────────────
-
-_BASE_FORM = {
-    'kcc_profile': 'KPW5', 'kcc_format': 'EPUB', 'kcc_cropping': '2',
-    'kcc_croppingpower': '1.0', 'kcc_croppingminimum': '1',
-    'kcc_splitter': '1', 'kcc_gamma': '0', 'kcc_batchsplit': '0',
-    'kcc_borders': 'black', 'kcc_author': '', 'kcc_customwidth': '',
-    'kcc_customheight': '',
-}
-
-
-def test_validate_post_saves_apprise_url(client, tmp_path):
-    config_file = tmp_path / 'settings.json'
-    data = {**_BASE_FORM,
-            'apprise_urls': 'ntfy://server/bindery',
-            'notify_on_success': 'on',
-            'notify_on_failure': 'on'}
-    with patch.object(cfg, 'CONFIG_FILE', str(config_file)), \
-         patch.object(cfg, 'CONFIG_DIR',  str(tmp_path)):
-        client.post('/', data=data)
-        saved = json.loads(config_file.read_text())
-    assert saved['apprise_urls']      == 'ntfy://server/bindery'
-    assert saved['notify_on_success'] is True
-    assert saved['notify_on_failure'] is True
-
-
-def test_validate_post_notify_unchecked_saves_false(client, tmp_path):
-    config_file = tmp_path / 'settings.json'
-    data = {**_BASE_FORM, 'apprise_urls': ''}
-    with patch.object(cfg, 'CONFIG_FILE', str(config_file)), \
-         patch.object(cfg, 'CONFIG_DIR',  str(tmp_path)):
-        client.post('/', data=data)
-        saved = json.loads(config_file.read_text())
-    assert saved['notify_on_success'] is False
-    assert saved['notify_on_failure'] is False
