@@ -8,6 +8,9 @@
 - Fixed: repeated failures no longer collide — `.failed` renames pick a free name (`X_2.failed`), the job remembers the real path so Retry still finds it, and Retry refuses to overwrite a newly dropped file with the same name
 - Fixed: Preserve Originals archive moves are collision-safe instead of overwriting files or nesting folders
 - Fixed: the live activity log froze once its 300-line buffer filled — the WebUI now detects buffer rotation, not just growth
+- Fixed: jobs interrupted by a container restart stayed as permanent "processing" rows — they're cleared on startup and the source files simply re-queue
+- Fixed: files whose names start with a dash (`-Batman.cbz`) failed to convert — the title is now passed in `=` form and the source gets a logged rename, since 7z inside KCC reads a bare dash-leading filename as a switch
+- Improved: WebUI reworked — status, file browser, and activity log moved above the settings form, low-contrast hint/label text fixed, mobile layout no longer crushes the status table, touch-sized buttons, keyboard focus outlines, and friendlier empty states
 - Updated: KCC `v9.4.3` → `v10.3.0` — better PDF handling (rasterised via PyMuPDF instead of extracting embedded JPEGs) plus two years of upstream image-processing fixes; all flags, device profiles, and behaviour Bindery relies on verified unchanged
 - Improved: KCC is now installed without its GUI dependency chain — PySide6/Qt never belonged in a headless image and dropping it makes the image several hundred MB smaller
 - Removed: stale `patch.py` release script and the unused `packaging` dependency; gunicorn is pinned `>=25.1` for `--no-control-socket`
