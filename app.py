@@ -16,7 +16,7 @@ from processor import (
 )
 from raw_processor import raw_watch_loop, raw_inotify_watch_loop
 
-VERSION = "3.4.0"
+VERSION = "3.5.0"
 
 
 def _clamp(value: object, min_val: float, max_val: float, default: float) -> str:
@@ -165,6 +165,7 @@ def create_app(start_threads: bool = True) -> Flask:
                 config[key] = request.form.get(key, DEFAULT_CONFIG.get(key, ''))
             for key in ('kcc_manga_style', 'kcc_hq', 'kcc_two_panel', 'kcc_webtoon',
                         'kcc_forcecolor', 'kcc_colorautocontrast', 'kcc_colorcurve',
+                        'kcc_eraserainbow',
                         'kcc_stretch', 'kcc_upscale', 'kcc_nosplitrotate', 'kcc_rotate',
                         'kcc_metadatatitle', 'kcc_nokepub',
                         'notify_on_success', 'notify_on_failure',

@@ -20,6 +20,7 @@ DEFAULT_CONFIG: ConfigDict = {
     'kcc_forcecolor':        True,
     'kcc_colorautocontrast': True,
     'kcc_colorcurve':        False,
+    'kcc_eraserainbow':      False,
     'kcc_stretch':           True,
     'kcc_upscale':           False,
     'kcc_nosplitrotate':     False,

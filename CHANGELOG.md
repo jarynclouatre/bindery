@@ -1,3 +1,7 @@
+## v3.5.0 — Rainbow Eraser
+
+- Added: **Rainbow Eraser** toggle in Color and Quality — exposes KCC's `--eraserainbow`, which attenuates the interference pattern that colour e-ink screens (Kindle Colorsoft, Kobo Libra Colour) add to colour pages; off by default and only affects colour output
+
 ## v3.4.0 — Folder Volumes, Format Cleanup & Watcher Fixes
 
 - Added: drop a folder of images into `Comics_in` and it converts as one bundled volume named after the folder (subfolders become chapters); folders containing comic archives convert file-by-file with structure preserved instead, since KCC rejects nested archives — both work with Retry and Preserve Originals

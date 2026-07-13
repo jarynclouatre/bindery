@@ -408,6 +408,7 @@ def _build_kcc_cmd(config: ConfigDict, filepath: str, temp_out: str) -> list[str
     if config['kcc_forcecolor']:        cmd.append('--forcecolor')
     if config['kcc_colorautocontrast']: cmd.append('--colorautocontrast')
     if config['kcc_colorcurve']:        cmd.append('--colorcurve')
+    if config.get('kcc_eraserainbow'): cmd.append('--eraserainbow')
     if config['kcc_stretch']:           cmd.append('--stretch')
     if config['kcc_upscale']:           cmd.append('--upscale')
     if config['kcc_nosplitrotate']:     cmd.append('--nosplitrotate')

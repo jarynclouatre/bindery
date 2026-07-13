@@ -158,6 +158,19 @@ def test_build_kcc_cmd_no_borders(tmp_path):
     assert '--whiteborders' not in cmd
 
 
+def test_build_kcc_cmd_eraserainbow_off_by_default(tmp_path):
+    config = dict(DEFAULT_CONFIG)
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
+    assert '--eraserainbow' not in cmd
+
+
+def test_build_kcc_cmd_eraserainbow_included_when_set(tmp_path):
+    config = dict(DEFAULT_CONFIG)
+    config['kcc_eraserainbow'] = True
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
+    assert '--eraserainbow' in cmd
+
+
 def test_build_kcc_cmd_other_profile_custom_dims(tmp_path):
     config = dict(DEFAULT_CONFIG)
     config['kcc_profile']      = 'OTHER'
