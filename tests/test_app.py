@@ -91,3 +91,50 @@ def test_api_restart_returns_json(client):
         resp = client.post('/api/restart')
     assert resp.status_code == 200
     assert json.loads(resp.data) == {'status': 'restarting'}
+
+
+def test_api_profiles_create_collision_and_delete(client, tmp_path):
+    config_file = tmp_path / 'settings.json'
+    comics_in   = tmp_path / 'comics_in'
+    comics_out  = tmp_path / 'comics_out'
+    comics_in.mkdir()
+    comics_out.mkdir()
+
+    with patch.object(cfg, 'CONFIG_FILE', str(config_file)), \
+         patch.object(cfg, 'CONFIG_DIR', str(tmp_path)), \
+         patch('app.COMICS_IN', str(comics_in)), \
+         patch('app.COMICS_OUT', str(comics_out)):
+        resp = client.post('/api/profiles', json={'action': 'create', 'name': 'kobo'})
+        assert resp.status_code == 200
+        saved = json.loads(config_file.read_text())
+        assert 'kobo' in saved['profiles']
+        assert saved['profiles']['kobo']['kcc_profile'] == saved['kcc_profile']
+        assert (comics_in / 'kobo').is_dir()
+        assert (comics_out / 'kobo').is_dir()
+
+        (comics_in / 'kindle').mkdir()
+        (comics_in / 'kindle' / 'x.cbz').write_bytes(b'x')
+        resp = client.post('/api/profiles', json={'action': 'create', 'name': 'kindle'})
+        assert resp.status_code == 409
+
+        resp = client.post('/api/profiles', json={'action': 'create', 'name': '.archive'})
+        assert resp.status_code == 400
+        resp = client.post('/api/profiles', json={'action': 'create', 'name': 'kobo'})
+        assert resp.status_code == 409
+
+        resp = client.post('/api/profiles', json={'action': 'delete', 'name': 'kobo'})
+        assert resp.status_code == 200
+        saved = json.loads(config_file.read_text())
+        assert saved['profiles'] == {}
+        assert (comics_in / 'kobo').is_dir()
+
+
+def test_index_post_editing_profile_saves_kcc_to_profile_only(client, tmp_path):
+    config_file = tmp_path / 'settings.json'
+    base = dict(cfg.DEFAULT_CONFIG)
+    base['profiles'] = {'kobo': {}}
+    config_file.write_text(json.dumps(base))
+
+    saved, _ = _post(client, tmp_path, editing_profile='kobo', kcc_profile='KPW5')
+    assert saved['profiles']['kobo']['kcc_profile'] == 'KPW5'
+    assert saved['kcc_profile'] == cfg.DEFAULT_CONFIG['kcc_profile']

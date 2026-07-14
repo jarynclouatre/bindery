@@ -668,6 +668,54 @@ def test_extract_chapter_folder_failure_cleans_temp_and_raises(tmp_path):
     assert not os.path.exists('/tmp/bundletest_bundle')
 
 
+# ── Device profiles ───────────────────────────────────────────────────────────
+
+def test_profile_for_path_matches_only_created_profiles(tmp_path):
+    config = dict(DEFAULT_CONFIG)
+    config['profiles'] = {'kobo': {}}
+    with patch.object(processor, 'COMICS_IN', str(tmp_path)):
+        assert processor._profile_for_path(str(tmp_path / 'kobo' / 'x.cbz'), config) == 'kobo'
+        assert processor._profile_for_path(str(tmp_path / 'kobo' / 'Series' / 'x.cbz'), config) == 'kobo'
+        assert processor._profile_for_path(str(tmp_path / 'x.cbz'), config) is None
+        assert processor._profile_for_path(str(tmp_path / 'Marvel' / 'x.cbz'), config) is None
+
+
+def test_config_for_path_applies_profile_kcc_only(tmp_path):
+    config = dict(DEFAULT_CONFIG)
+    config['profiles'] = {'kobo': {'kcc_profile': 'KPW5', 'kcc_manga_style': True}}
+    config['preserve_originals'] = True
+    with patch.object(processor, 'COMICS_IN', str(tmp_path)), \
+         patch('processor.load_config', return_value=config):
+        inside  = processor._config_for_path(str(tmp_path / 'kobo' / 'x.cbz'))
+        outside = processor._config_for_path(str(tmp_path / 'x.cbz'))
+    assert inside['kcc_profile'] == 'KPW5'
+    assert inside['kcc_manga_style'] is True
+    assert inside['preserve_originals'] is True
+    assert outside['kcc_profile'] == DEFAULT_CONFIG['kcc_profile']
+    assert outside['kcc_manga_style'] is False
+
+
+def test_scan_directories_profile_folder_is_a_root_not_a_job(tmp_path):
+    """A profile folder is a drop target with its own settings: files inside
+    dispatch per-file, folders inside become folder jobs, and the profile
+    folder itself must never convert as one giant volume."""
+    config = dict(DEFAULT_CONFIG)
+    config['profiles'] = {'kobo': {}}
+    def setup(comics_in):
+        kobo = comics_in / 'kobo'
+        kobo.mkdir()
+        (kobo / 'x.cbz').write_bytes(b'x')
+        series = kobo / 'Batman'
+        series.mkdir()
+        (series / 'p1.jpg').write_bytes(b'x')
+    with patch('processor.load_config', return_value=config):
+        comics_in, targets = _scan_dispatches(tmp_path, setup)
+    kobo = comics_in / 'kobo'
+    assert str(kobo) not in targets
+    assert targets.get(str(kobo / 'x.cbz')) is processor.process_file
+    assert targets.get(str(kobo / 'Batman')) is processor.process_folder
+
+
 def test_folder_quiet_secs_follows_timeout_with_floor():
     assert processor._folder_quiet_secs({'file_wait_timeout': 300}) == 300
     assert processor._folder_quiet_secs({'file_wait_timeout': 10}) == 30
@@ -722,7 +770,8 @@ def test_process_folder_preserve_originals_archives(tmp_path):
     config = dict(DEFAULT_CONFIG)
     config['preserve_originals'] = True
 
-    with patch.object(processor, 'COMICS_ARCHIVE', str(archive)), \
+    with patch.object(processor, 'COMICS_IN', str(comics_in)), \
+         patch.object(processor, 'COMICS_ARCHIVE', str(archive)), \
          patch.object(processor, 'COMICS_OUT', str(tmp_path / 'out')), \
          patch('processor.load_config', return_value=config), \
          patch('processor._is_dir_stable', return_value=True), \

@@ -81,3 +81,22 @@ def test_save_config_atomic_no_partial_file_on_error(tmp_path):
     # Original file must still be valid and untouched
     saved = json.loads(config_file.read_text())
     assert saved == original
+
+
+def test_profile_overrides_merges_kcc_keys_only():
+    config = dict(cfg.DEFAULT_CONFIG)
+    config['profiles'] = {'kobo': {'kcc_profile': 'KPW5', 'preserve_originals': True}}
+    merged = cfg.profile_overrides(config, 'kobo')
+    assert merged['kcc_profile'] == 'KPW5'
+    assert merged['preserve_originals'] is False
+    assert cfg.profile_overrides(config, 'nope') is config
+
+
+def test_profile_overrides_inherits_unsaved_keys():
+    """A profile saved before a new toggle existed must inherit the main
+    setting for it, not crash or zero it."""
+    config = dict(cfg.DEFAULT_CONFIG)
+    config['kcc_mozjpeg'] = True
+    config['profiles'] = {'old': {'kcc_profile': 'KPW5'}}
+    merged = cfg.profile_overrides(config, 'old')
+    assert merged['kcc_mozjpeg'] is True

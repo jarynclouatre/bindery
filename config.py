@@ -45,7 +45,12 @@ DEFAULT_CONFIG: ConfigDict = {
     'notify_on_failure':     True,
     'preserve_originals':    False,
     'bundle_chapter_folders': False,
+    'profiles':              {},
 }
+
+# Keys a device profile overrides. Everything else — watcher, notifications,
+# folder handling — is shared across profiles.
+KCC_KEYS = frozenset(k for k in DEFAULT_CONFIG if k.startswith('kcc_'))
 
 _config_lock = threading.Lock()
 
@@ -67,6 +72,21 @@ def load_config() -> ConfigDict:
             except Exception:
                 pass
         return dict(DEFAULT_CONFIG)
+
+
+def profile_overrides(config: ConfigDict, name: str) -> ConfigDict:
+    """Return config with the named profile's KCC settings laid over the top.
+
+    Unknown names return config unchanged. Keys a profile has never saved
+    inherit the main settings, so new toggles work everywhere immediately.
+    """
+    profiles = config.get('profiles') or {}
+    overrides = profiles.get(name)
+    if not isinstance(overrides, dict):
+        return config
+    merged = dict(config)
+    merged.update({k: v for k, v in overrides.items() if k in KCC_KEYS})
+    return merged
 
 
 def save_config(config: ConfigDict) -> None:

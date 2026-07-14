@@ -1,18 +1,19 @@
 """Flask application factory, WebUI routes, and form validation."""
 
 import os
+import re
 import signal
 import time
 import threading
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request, render_template, send_file
 
-from config import DEFAULT_CONFIG, load_config, save_config, ConfigDict
+from config import DEFAULT_CONFIG, KCC_KEYS, load_config, save_config, ConfigDict
 from processor import (
     LOG_BUFFER, log_lock, log, watch_loop, inotify_watch_loop,
     _load_log_history, _load_job_registry,
     JOB_REGISTRY, job_registry_lock, retry_file,
-    BOOKS_OUT, COMICS_OUT,
+    BOOKS_IN, BOOKS_OUT, COMICS_IN, COMICS_OUT,
 )
 from raw_processor import raw_watch_loop, raw_inotify_watch_loop
 
@@ -96,6 +97,41 @@ def create_app(start_threads: bool = True) -> Flask:
         jobs.sort(key=lambda j: j.get('created') or '', reverse=True)
         return jsonify({'jobs': jobs})
 
+    @app.route('/api/profiles', methods=['POST'])
+    def api_profiles():
+        data     = request.get_json(silent=True) or {}
+        action   = data.get('action', '')
+        name     = (data.get('name') or '').strip()
+        config   = load_config()
+        profiles = config.get('profiles') or {}
+
+        if action == 'create':
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ._-]{0,31}', name) or name.endswith('.failed'):
+                return jsonify({'error': 'Names can use letters, numbers, spaces and . _ - (up to 32 characters, no leading dot)'}), 400
+            if name in profiles:
+                return jsonify({'error': f'Profile "{name}" already exists'}), 409
+            in_dir = os.path.join(COMICS_IN, name)
+            if os.path.isfile(in_dir) or (os.path.isdir(in_dir) and os.listdir(in_dir)):
+                return jsonify({'error': f'"{name}" already exists in Comics_in and is not empty — move it aside or pick another name'}), 409
+            profiles[name] = {k: config[k] for k in KCC_KEYS if k in config}
+            config['profiles'] = profiles
+            save_config(config)
+            os.makedirs(in_dir, exist_ok=True)
+            os.makedirs(os.path.join(COMICS_OUT, name), exist_ok=True)
+            log(f">>> Profile created: {name} — drop comics into /Comics_in/{name}")
+            return jsonify({'ok': True})
+
+        if action == 'delete':
+            if name not in profiles:
+                return jsonify({'error': 'unknown profile'}), 404
+            profiles.pop(name)
+            config['profiles'] = profiles
+            save_config(config)
+            log(f">>> Profile deleted: {name} — /Comics_in/{name} now converts with the main settings")
+            return jsonify({'ok': True})
+
+        return jsonify({'error': 'unknown action'}), 400
+
     @app.route('/api/retry', methods=['POST'])
     def api_retry():
         data   = request.get_json(silent=True) or {}
@@ -176,6 +212,21 @@ def create_app(start_threads: bool = True) -> Flask:
             config['watcher_mode']  = request.form.get('watcher_mode', 'poll')
             config['apprise_urls']  = request.form.get('apprise_urls', '')
             config = _validate_post(config)
+
+            # When a device profile is being edited, its KCC values land in the
+            # profile; everything else (watcher, notifications, folder handling)
+            # is shared and saves globally either way.
+            editing = (request.form.get('editing_profile') or '').strip()
+            if editing:
+                disk     = load_config()
+                profiles = disk.get('profiles') or {}
+                if editing in profiles:
+                    profiles[editing] = {k: config[k] for k in KCC_KEYS if k in config}
+                    disk['profiles']  = profiles
+                    for k, v in config.items():
+                        if k not in KCC_KEYS and k != 'profiles':
+                            disk[k] = v
+                    config = disk
             save_config(config)
             saved = True
             do_restart = bool(request.form.get('do_restart'))

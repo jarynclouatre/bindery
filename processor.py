@@ -12,7 +12,7 @@ import subprocess
 from collections import deque
 from datetime import datetime, timezone
 
-from config import DEFAULT_CONFIG, load_config, ConfigDict
+from config import DEFAULT_CONFIG, load_config, profile_overrides, ConfigDict
 
 COMICS_IN      = '/Comics_in'
 COMICS_OUT     = '/Comics_out'
@@ -282,6 +282,28 @@ def wait_for_file_ready(filepath: str, timeout: int = 60) -> bool:
     return False
 
 
+def _profile_for_path(path: str, config: ConfigDict) -> str | None:
+    """Name of the device profile a Comics_in path falls under, or None.
+
+    A path is inside a profile when its first component below Comics_in
+    exactly matches a profile the user created. Everything else — including
+    all of Books_in — uses the main settings.
+    """
+    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(COMICS_IN))
+    if rel == '.' or rel.startswith('..'):
+        return None
+    top = rel.split(os.sep)[0]
+    profiles = config.get('profiles') or {}
+    return top if top in profiles else None
+
+
+def _config_for_path(path: str) -> ConfigDict:
+    """Load settings with the right device profile applied for this path."""
+    config = load_config()
+    name = _profile_for_path(path, config)
+    return profile_overrides(config, name) if name else config
+
+
 def _folder_quiet_secs(config: ConfigDict) -> int:
     """Quiet window a folder must sit unmodified before converting.
 
@@ -506,7 +528,7 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
         if job_id is None:
             job_id = _register_job(filepath, c_type)
 
-        config = load_config()
+        config = _config_for_path(filepath)
         if not wait_for_file_ready(filepath, int(config.get('file_wait_timeout', 60))):
             log(f">>> SKIP (not ready): {short}")
             # Remove job so the next scan creates a fresh one
@@ -520,7 +542,8 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             short    = os.path.basename(filepath)[:40]
 
         _update_job(job_id, state='processing', started=_now(),
-                    src_bytes=_tree_bytes(filepath))
+                    src_bytes=_tree_bytes(filepath),
+                    profile=_profile_for_path(filepath, config))
 
         rel_dir = os.path.relpath(os.path.dirname(filepath), in_base)
         if rel_dir == '.':
@@ -600,7 +623,7 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
         if job_id is None:
             job_id = _register_job(folderpath, 'comic')
 
-        config = load_config()
+        config = _config_for_path(folderpath)
         if not _is_dir_stable(folderpath, _folder_quiet_secs(config)):
             log(f">>> SKIP (not ready): {short}/")
             with job_registry_lock:
@@ -609,7 +632,8 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
             return
 
         _update_job(job_id, state='processing', started=_now(),
-                    src_bytes=_tree_bytes(folderpath))
+                    src_bytes=_tree_bytes(folderpath),
+                    profile=_profile_for_path(folderpath, config))
 
         kcc_input = folderpath
         chapters  = sum(1 for _r, _d, fs in os.walk(folderpath) for f in fs
@@ -627,15 +651,18 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
             log(f">>> CMD: {' '.join(cmd)}")
             _run_conversion(cmd, short)
 
+        rel_dir = os.path.relpath(os.path.dirname(folderpath), COMICS_IN)
+        out_dir = COMICS_OUT if rel_dir in ('.', '') else os.path.join(COMICS_OUT, rel_dir)
+
         produced = get_output_files(temp_out)
         if produced:
             out_bytes = sum(_tree_bytes(f) for f in produced)
             for f in produced:
-                move_output_file(f, COMICS_OUT)
+                move_output_file(f, out_dir)
             if os.path.exists(folderpath):
                 if config.get('preserve_originals', False):
-                    _dest = os.path.join(COMICS_ARCHIVE, os.path.basename(folderpath))
-                    os.makedirs(COMICS_ARCHIVE, exist_ok=True)
+                    _dest = os.path.join(COMICS_ARCHIVE, os.path.relpath(folderpath, COMICS_IN))
+                    os.makedirs(os.path.dirname(_dest), exist_ok=True)
                     shutil.move(folderpath, _collision_free(_dest))
                 else:
                     shutil.rmtree(folderpath)
@@ -763,42 +790,54 @@ def scan_directories() -> None:
                         threading.Thread(target=process_file,
                                          args=(path, 'book'), daemon=True).start()
 
-    # Dispatch top-level Comics_in folders that qualify as bundled KCC jobs;
-    # everything else is left to the per-file walk below. KCC rejects nested
-    # archives ("No images detected"), so archive folders only bundle via the
-    # extraction pre-pass, and only when the user enabled it.
-    config = load_config()
-    folder_job_names: set[str] = set()
-    try:
-        top_entries = os.listdir(COMICS_IN)
-    except OSError:
-        top_entries = []
-    for entry in top_entries:
-        if entry.startswith('.') or entry.endswith('.failed'):
-            continue
-        full = os.path.join(COMICS_IN, entry)
-        if not os.path.isdir(full) or not _is_bundle_folder(full, config):
-            continue
-        folder_job_names.add(entry)
-        with lock_mutex:
-            if full not in PROCESSING_LOCKS:
-                PROCESSING_LOCKS.add(full)
-                threading.Thread(target=process_folder, args=(full,), daemon=True).start()
+    # Comics_in and each device-profile folder inside it are scanned as
+    # separate roots: a profile folder is a drop target with its own settings,
+    # never a conversion job itself. Within every root, top-level folders that
+    # qualify as bundled KCC jobs dispatch whole; everything else is left to
+    # the per-file walk. KCC rejects nested archives ("No images detected"),
+    # so archive folders only bundle via the extraction pre-pass, and only
+    # when the user enabled it.
+    config        = load_config()
+    profile_names = set(config.get('profiles') or {})
+    comic_roots   = [COMICS_IN] + [os.path.join(COMICS_IN, n) for n in sorted(profile_names)
+                                   if os.path.isdir(os.path.join(COMICS_IN, n))]
 
-    for root, dirs, files in os.walk(COMICS_IN):
-        if root == COMICS_IN:
-            dirs[:] = [d for d in dirs if not d.startswith('.') and not d.endswith('.failed')
-                       and d not in folder_job_names]
-        else:
-            dirs[:] = [d for d in dirs if not d.startswith('.') and not d.endswith('.failed')]
-        for f in files:
-            if os.path.splitext(f)[1].lower() in COMIC_EXTS and not f.endswith('.failed'):
-                path = os.path.join(root, f)
-                with lock_mutex:
-                    if path not in PROCESSING_LOCKS:
-                        PROCESSING_LOCKS.add(path)
-                        threading.Thread(target=process_file,
-                                         args=(path, 'comic'), daemon=True).start()
+    for base in comic_roots:
+        is_main = (base == COMICS_IN)
+        folder_job_names: set[str] = set()
+        try:
+            top_entries = os.listdir(base)
+        except OSError:
+            top_entries = []
+        for entry in top_entries:
+            if entry.startswith('.') or entry.endswith('.failed'):
+                continue
+            if is_main and entry in profile_names:
+                continue
+            full = os.path.join(base, entry)
+            if not os.path.isdir(full) or not _is_bundle_folder(full, config):
+                continue
+            folder_job_names.add(entry)
+            with lock_mutex:
+                if full not in PROCESSING_LOCKS:
+                    PROCESSING_LOCKS.add(full)
+                    threading.Thread(target=process_folder, args=(full,), daemon=True).start()
+
+        for root, dirs, files in os.walk(base):
+            if root == base:
+                dirs[:] = [d for d in dirs if not d.startswith('.') and not d.endswith('.failed')
+                           and d not in folder_job_names
+                           and not (is_main and d in profile_names)]
+            else:
+                dirs[:] = [d for d in dirs if not d.startswith('.') and not d.endswith('.failed')]
+            for f in files:
+                if os.path.splitext(f)[1].lower() in COMIC_EXTS and not f.endswith('.failed'):
+                    path = os.path.join(root, f)
+                    with lock_mutex:
+                        if path not in PROCESSING_LOCKS:
+                            PROCESSING_LOCKS.add(path)
+                            threading.Thread(target=process_file,
+                                             args=(path, 'comic'), daemon=True).start()
 
 
 def watch_loop() -> None:
@@ -838,11 +877,17 @@ def inotify_watch_loop() -> None:
                    for part in path.split(os.sep) if part):
                 return
             if self.c_type == 'comic':
-                rel = os.path.relpath(os.path.abspath(path), os.path.abspath(COMICS_IN))
-                parts = rel.split(os.sep)
+                config = load_config()
+                base   = COMICS_IN
+                rel    = os.path.relpath(os.path.abspath(path), os.path.abspath(COMICS_IN))
+                parts  = rel.split(os.sep)
+                if len(parts) > 1 and parts[0] in (config.get('profiles') or {}):
+                    # Inside a device profile folder — treat it as its own root.
+                    base  = os.path.join(COMICS_IN, parts[0])
+                    parts = parts[1:]
                 if len(parts) > 1:
-                    top = os.path.join(COMICS_IN, parts[0])
-                    if _is_bundle_folder(top):
+                    top = os.path.join(base, parts[0])
+                    if _is_bundle_folder(top, config):
                         # Bundle folder — it's one volume, never converted
                         # piecemeal. Poke the folder job instead.
                         self._maybe_dispatch_dir(top)
@@ -858,14 +903,22 @@ def inotify_watch_loop() -> None:
                     ).start()
 
         def _maybe_dispatch_dir(self, path: str) -> None:
-            # Only top-level directories directly inside Comics_in are treated
-            # as bundled folder jobs. Deeper directories are ignored here.
-            if os.path.dirname(os.path.abspath(path)) != os.path.abspath(COMICS_IN):
+            # Folder jobs live directly inside Comics_in or a profile folder.
+            # Deeper directories are ignored here, and a profile folder is a
+            # drop target, never a job itself.
+            config   = load_config()
+            profiles = config.get('profiles') or {}
+            parent   = os.path.dirname(os.path.abspath(path))
+            main     = os.path.abspath(COMICS_IN)
+            roots    = [main] + [os.path.join(main, n) for n in profiles]
+            if parent not in roots:
                 return
             base = os.path.basename(path)
             if base.startswith('.') or base.endswith('.failed'):
                 return
-            if not _is_bundle_folder(path):
+            if parent == main and base in profiles:
+                return
+            if not _is_bundle_folder(path, config):
                 # Its files convert per-file instead.
                 return
             with lock_mutex:
