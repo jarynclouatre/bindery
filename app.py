@@ -4,6 +4,7 @@ import os
 import re
 import signal
 import time
+import uuid
 import threading
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request, render_template, send_file
@@ -11,8 +12,9 @@ from flask import Flask, jsonify, request, render_template, send_file
 from config import DEFAULT_CONFIG, KCC_KEYS, load_config, save_config, ConfigDict
 from processor import (
     LOG_BUFFER, log_lock, log, watch_loop, inotify_watch_loop,
-    _load_log_history, _load_job_registry,
+    _load_log_history, _load_job_registry, _collision_free,
     JOB_REGISTRY, job_registry_lock, retry_file,
+    BOOK_EXTS, COMIC_EXTS,
     BOOKS_IN, BOOKS_OUT, COMICS_IN, COMICS_OUT,
 )
 from raw_processor import raw_watch_loop, raw_inotify_watch_loop
@@ -79,10 +81,55 @@ def _validate_post(config: ConfigDict) -> ConfigDict:
 
 def create_app(start_threads: bool = True) -> Flask:
     app = Flask(__name__)
+    # Werkzeug spools big uploads to disk, so the cap is about sanity, not RAM.
+    app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024 * 1024
 
     @app.route('/health')
     def health():
         return jsonify({'status': 'ok'})
+
+    @app.errorhandler(413)
+    def too_large(_e):
+        return jsonify({'error': 'File too large (4 GB max per upload)'}), 413
+
+    @app.route('/api/upload', methods=['POST'])
+    def api_upload():
+        uploads = request.files.getlist('files')
+        if not uploads:
+            return jsonify({'error': 'no files'}), 400
+        profile  = (request.form.get('profile') or '').strip()
+        config   = load_config()
+        profiles = config.get('profiles') or {}
+        results  = []
+        for f in uploads:
+            name = os.path.basename(f.filename or '').lstrip('.')
+            ext  = os.path.splitext(name)[1].lower()
+            if not name or ext not in BOOK_EXTS | COMIC_EXTS:
+                results.append({'name': f.filename or '?', 'error': 'unsupported file type'})
+                continue
+            if ext in BOOK_EXTS:
+                base = BOOKS_IN
+            else:
+                base = os.path.join(COMICS_IN, profile) if profile in profiles else COMICS_IN
+            # Land in a hidden dir the watchers ignore, then rename into place
+            # so the scanner only ever sees complete files.
+            hold = os.path.join(base, '.uploading')
+            os.makedirs(hold, exist_ok=True)
+            part = os.path.join(hold, uuid.uuid4().hex + '.part')
+            try:
+                f.save(part)
+                dest = _collision_free(os.path.join(base, name))
+                os.replace(part, dest)
+            except OSError as e:
+                try:
+                    os.remove(part)
+                except OSError:
+                    pass
+                results.append({'name': name, 'error': str(e)})
+                continue
+            log(f">>> Uploaded via WebUI: {os.path.relpath(dest, base)} → {base}")
+            results.append({'name': os.path.basename(dest), 'ok': True})
+        return jsonify({'files': results})
 
     @app.route('/api/logs')
     def api_logs():

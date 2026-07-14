@@ -138,3 +138,56 @@ def test_index_post_editing_profile_saves_kcc_to_profile_only(client, tmp_path):
     saved, _ = _post(client, tmp_path, editing_profile='kobo', kcc_profile='KPW5')
     assert saved['profiles']['kobo']['kcc_profile'] == 'KPW5'
     assert saved['kcc_profile'] == cfg.DEFAULT_CONFIG['kcc_profile']
+
+
+def _upload(client, tmp_path, filename, content=b'data', profile=None):
+    from io import BytesIO
+    config_file = tmp_path / 'settings.json'
+    books_in  = tmp_path / 'books_in'
+    comics_in = tmp_path / 'comics_in'
+    books_in.mkdir(exist_ok=True)
+    comics_in.mkdir(exist_ok=True)
+    data = {'files': (BytesIO(content), filename)}
+    if profile is not None:
+        data['profile'] = profile
+    with patch.object(cfg, 'CONFIG_FILE', str(config_file)), \
+         patch.object(cfg, 'CONFIG_DIR', str(tmp_path)), \
+         patch('app.BOOKS_IN', str(books_in)), \
+         patch('app.COMICS_IN', str(comics_in)):
+        resp = client.post('/api/upload', data=data,
+                           content_type='multipart/form-data')
+    return resp, books_in, comics_in
+
+
+def test_api_upload_routes_by_extension(client, tmp_path):
+    resp, books_in, comics_in = _upload(client, tmp_path, 'novel.epub')
+    assert resp.status_code == 200
+    assert (books_in / 'novel.epub').read_bytes() == b'data'
+
+    resp, books_in, comics_in = _upload(client, tmp_path, 'issue.cbz')
+    assert (comics_in / 'issue.cbz').exists()
+    assert not (comics_in / '.uploading' / 'issue.cbz').exists()
+
+
+def test_api_upload_rejects_unsupported_and_dodges_collisions(client, tmp_path):
+    resp, _books, comics_in = _upload(client, tmp_path, 'virus.exe')
+    assert json.loads(resp.data)['files'][0]['error'] == 'unsupported file type'
+
+    (comics_in / 'issue.cbz').write_bytes(b'old')
+    resp, _books, comics_in = _upload(client, tmp_path, 'issue.cbz')
+    saved_as = json.loads(resp.data)['files'][0]['name']
+    assert saved_as != 'issue.cbz'
+    assert (comics_in / saved_as).read_bytes() == b'data'
+    assert (comics_in / 'issue.cbz').read_bytes() == b'old'
+
+
+def test_api_upload_lands_in_profile_folder(client, tmp_path):
+    config_file = tmp_path / 'settings.json'
+    base = dict(cfg.DEFAULT_CONFIG)
+    base['profiles'] = {'kobo': {}}
+    config_file.write_text(json.dumps(base))
+    resp, _books, comics_in = _upload(client, tmp_path, 'issue.cbz', profile='kobo')
+    assert (comics_in / 'kobo' / 'issue.cbz').exists()
+
+    resp, _books, comics_in = _upload(client, tmp_path, 'other.cbz', profile='ghost')
+    assert (comics_in / 'other.cbz').exists()
