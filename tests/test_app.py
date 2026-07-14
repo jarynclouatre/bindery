@@ -1,4 +1,5 @@
 import json
+import time
 from unittest.mock import patch
 
 import config as cfg
@@ -87,10 +88,16 @@ def test_validate_post_notify_unchecked_saves_false(client, tmp_path):
 
 
 def test_api_restart_returns_json(client):
-    with patch('app.os.kill'):
+    # The endpoint fires os.kill from a thread ~0.5s after responding; the
+    # patch must stay up until that happens or the real kill hits pytest.
+    with patch('app.os.kill') as mock_kill:
         resp = client.post('/api/restart')
-    assert resp.status_code == 200
-    assert json.loads(resp.data) == {'status': 'restarting'}
+        assert resp.status_code == 200
+        assert json.loads(resp.data) == {'status': 'restarting'}
+        deadline = time.time() + 5
+        while not mock_kill.called and time.time() < deadline:
+            time.sleep(0.05)
+    assert mock_kill.called
 
 
 def test_api_profiles_create_collision_and_delete(client, tmp_path):
