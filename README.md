@@ -87,9 +87,13 @@ services:
 
 The WebUI at port 5000 gives you full control over Bindery without touching config files or restarting the container.
 
+### Upload
+
+Drag files anywhere onto the page — or tap the strip under the header on a phone — and they land in the right watch folder automatically: `.epub` goes to `Books_in`, comics to `Comics_in` or a device profile folder of your choice. Conversion starts on the next scan, and the status table picks the job up like any other drop. No Samba, SFTP, or shell access needed.
+
 ### Processing Status
 
-A live table shows every conversion job — filename, type, status (`queued` / `processing` / `success` / `failed`), timestamp, and elapsed time. Failed jobs show a **Retry** button that re-queues the file immediately. Job history is persisted in `/app/config/jobs.json` and survives container restarts (capped at 500 entries; oldest completed jobs are pruned first).
+A live table shows every conversion job — filename, type, status (`queued` / `processing` / `success` / `failed`), timestamp, and elapsed time. Successful conversions also show the before → after size and percentage saved, and jobs from a device profile folder carry the profile's tag. Failed jobs show a **Retry** button that re-queues the file immediately. Job history is persisted in `/app/config/jobs.json` and survives container restarts (capped at 500 entries; oldest completed jobs are pruned first).
 
 ### File Browser
 
@@ -108,6 +112,20 @@ tgram://bot_token/chat_id
 ```
 
 Full URL formats for every supported service are in the [Apprise docs](https://github.com/caronc/apprise/wiki).
+
+---
+
+## Device Profiles
+
+One Bindery can serve every reader in the house. Create a profile in the WebUI — the pills at the top of the KCC settings card — name it after the device (`kobo`, `kindle`, whatever you like), and Bindery creates `Comics_in/<name>` and `Comics_out/<name>` for it. Anything dropped into a profile's folder converts with that profile's KCC settings and comes out in its own output folder, so nothing gets mixed together.
+
+A few rules that keep it predictable:
+
+- Drops in the root of `Comics_in` always use the main settings — creating profiles changes nothing for anyone who ignores them.
+- A profile starts as a copy of the main settings; switch to its pill, adjust, and save. Settings a profile has never saved follow the main settings automatically.
+- Watcher mode, notifications, Preserve Originals, and the other Bindery settings are shared — profiles override KCC conversion settings only. Books have no KCC settings, so `Books_in` is unaffected.
+- Deleting a profile never touches its folders or files; future drops there simply convert with the main settings.
+- Folder jobs and Bundle Chapter Folders work inside profile folders exactly as they do in the root.
 
 ---
 
@@ -141,7 +159,7 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 
 - Bindery watches `/Books_in`, `/Comics_in` and `/Comics_raw` using either **poll** mode (every 10 s, NAS/SMB/NFS compatible) or **inotify** mode (instant on local filesystems, with a 60 s backstop scan for anything events miss).
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
-- Subfolder structure is preserved for individually converted files — `Comics_in/Marvel/issue01.cbz` converts to `Comics_out/Marvel/issue01.kepub`, and books work the same way.
+- Subfolder structure is preserved for individually converted files — `Comics_in/Marvel/issue01.cbz` converts to `Comics_out/Marvel/issue01.kepub`, and books work the same way. Device profile folders mirror too: `Comics_in/kobo/x.cbz` comes out in `Comics_out/kobo/`.
 - A folder of images dropped into `Comics_in` is one bundled job: a single volume named after the folder, with subfolders as chapters. With **Bundle Chapter Folders** enabled, a folder of chapter archives works the same way — one volume, a chapter per archive. Processing starts once nothing inside has changed for the File Stability Timeout (minimum 30 s).
 - On success: converted file is moved to the output folder. The source is deleted, or moved to `Comics_in/.archive` if **Preserve Originals** is enabled.
 - On failure: the source is renamed to `<filename>.failed` and will not be retried automatically. Use the Retry button in the WebUI to re-queue it.

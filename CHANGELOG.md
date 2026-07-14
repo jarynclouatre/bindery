@@ -1,6 +1,10 @@
-## v4.0.0
+## v4.0.0 — Device Profiles, Browser Upload & Merged Volumes
 
+- Added: **Device Profiles** — create named profiles (say, `kobo` and `kindle`) in the WebUI, each with its own KCC settings. Every profile gets a drop folder (`Comics_in/kobo`) and a matching output folder (`Comics_out/kobo`), created for you. Drops in the root of `Comics_in` behave exactly as before, and nothing changes until you create your first profile. Deleting a profile keeps its folders and files; future drops there just use the main settings
+- Added: **upload from the WebUI** — drag files onto the page (or tap the strip on a phone) and they land in the right watch folder: books to `Books_in`, comics to `Comics_in` or a profile folder of your choice. No SMB, SFTP, or shell access needed
 - Added: **Bundle Chapter Folders** toggle in Bindery Settings — with it on, a folder of chapter archives (`.cbz`/`.cbr`/`.zip`/`.rar`) dropped into `Comics_in` converts as one volume with a chapter per file, ordered naturally (`ch2` before `ch10`), instead of one book per file. Off by default, so existing per-file setups are untouched; folders holding PDFs or loose images alongside archives keep the per-file path either way
+- Added: successful conversions show **before → after sizes** and the percentage saved, right in the status table
+- Improved: WebUI — the save button now lives in a bar that appears only when there are unsaved changes and names what it saves ("Save "kobo" Profile"); download buttons no longer borrow the success green; timestamps are shorter; conversions from a profile are tagged in the status table
 - Changed: the quiet window before a dropped folder converts now follows **File Stability Timeout** (with a 30 s floor) instead of a fixed 30 s, so slow downloaders that pause between chapters can extend it
 - Updated: KCC `v10.3.0` → `v10.4.0` — smart-cover-crop crash fix and higher JPEG quality on Scribe/Colorsoft profiles; every flag and device profile Bindery relies on verified unchanged between the tags
 
