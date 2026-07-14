@@ -169,7 +169,7 @@ def create_app(start_threads: bool = True) -> Flask:
                         'kcc_stretch', 'kcc_upscale', 'kcc_nosplitrotate', 'kcc_rotate',
                         'kcc_metadatatitle', 'kcc_nokepub',
                         'notify_on_success', 'notify_on_failure',
-                        'preserve_originals'):
+                        'preserve_originals', 'bundle_chapter_folders'):
                 config[key] = key in request.form
             config['file_wait_timeout'] = request.form.get(
                 'file_wait_timeout', DEFAULT_CONFIG.get('file_wait_timeout', 60))

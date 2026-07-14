@@ -49,7 +49,7 @@ bindery/
 └── config/          ← settings.json and jobs.json persisted here
 ```
 
-All folders are created automatically on first run. Books keep their subfolder structure — `books_in/Tolkien/hobbit.epub` converts to `books_out/Tolkien/hobbit.kepub`. For comics it depends on what a folder contains: a folder of **images** is treated as one volume (subfolders become chapters, output named after the folder), while archives — loose or inside folders — convert individually with subfolder structure preserved.
+All folders are created automatically on first run. Books keep their subfolder structure — `books_in/Tolkien/hobbit.epub` converts to `books_out/Tolkien/hobbit.kepub`. For comics it depends on what a folder contains: a folder of **images** is treated as one volume (subfolders become chapters, output named after the folder), while archives — loose or inside folders — convert individually with subfolder structure preserved, unless **Bundle Chapter Folders** is enabled, which turns a folder of chapter archives into one volume too.
 
 ---
 
@@ -130,9 +130,10 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 | Setting | Default | Notes |
 |---------|---------|-------|
 | Watcher Mode | `poll` | `poll` scans every 10 s and works everywhere including NFS/SMB. `inotify` detects files instantly on local filesystems, with a 60 s backstop scan covering network mounts and mid-transfer folders. Requires a container restart to take effect. |
-| File Stability Timeout | `60` s | How long Bindery waits for a file to finish transferring before skipping it. Increase for slow network drives. Range: 10–300 s. |
+| File Stability Timeout | `60` s | How long Bindery waits for a file to finish transferring before skipping it. Dropped folders also wait at least this long after their last change before converting. Increase for slow network drives. Range: 10–300 s. |
 | Notifications (Apprise) | *(blank)* | One Apprise service URL per line. Leave blank to disable notifications. See [Apprise docs](https://github.com/caronc/apprise/wiki) for URL formats. |
 | Preserve Originals | disabled | When enabled, source comics are moved to `Comics_in/.archive` after a successful conversion instead of being deleted. Subdirectory structure is mirrored. Has no effect on book conversions. |
+| Bundle Chapter Folders | disabled | When enabled, a folder of chapter archives (`.cbz`/`.cbr`/`.zip`/`.rar`) dropped into `Comics_in` converts as **one volume** with a chapter per archive, in natural order (`ch2` before `ch10`). When disabled (the default), such folders convert file-by-file as before. Folders containing PDFs or loose images alongside archives always convert file-by-file. |
 
 ---
 
@@ -141,7 +142,7 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 - Bindery watches `/Books_in`, `/Comics_in` and `/Comics_raw` using either **poll** mode (every 10 s, NAS/SMB/NFS compatible) or **inotify** mode (instant on local filesystems, with a 60 s backstop scan for anything events miss).
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
 - Subfolder structure is preserved for individually converted files — `Comics_in/Marvel/issue01.cbz` converts to `Comics_out/Marvel/issue01.kepub`, and books work the same way.
-- A folder of images dropped into `Comics_in` is one bundled job: a single volume named after the folder, with subfolders as chapters. Processing starts once nothing inside has changed for 30 s.
+- A folder of images dropped into `Comics_in` is one bundled job: a single volume named after the folder, with subfolders as chapters. With **Bundle Chapter Folders** enabled, a folder of chapter archives works the same way — one volume, a chapter per archive. Processing starts once nothing inside has changed for the File Stability Timeout (minimum 30 s).
 - On success: converted file is moved to the output folder. The source is deleted, or moved to `Comics_in/.archive` if **Preserve Originals** is enabled.
 - On failure: the source is renamed to `<filename>.failed` and will not be retried automatically. Use the Retry button in the WebUI to re-queue it.
 - Raw image folders in `Comics_raw` are held until stable (no file changes for 30 s) before processing begins.

@@ -576,13 +576,20 @@
                            min="10" max="300" step="1"
                            value="{{ config.file_wait_timeout }}">
                 </div>
-                <p class="note">How long to wait for a file to finish transferring before skipping it. Increase for slow network drives. Range: 10–300 s.</p>
+                <p class="note">How long to wait for a file to finish transferring before skipping it. Dropped folders also wait at least this long after their last change. Increase for slow network drives. Range: 10–300 s.</p>
                 <div class="checks" style="margin-top:14px">
                     <label class="check">
                         <input type="checkbox" name="preserve_originals" {% if config.preserve_originals %}checked{% endif %}>
                         <span>
                             <div class="check-label">Preserve Originals</div>
                             <div class="check-hint">Move source comics to <code>Comics_in/.archive</code> after conversion instead of deleting them</div>
+                        </span>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" name="bundle_chapter_folders" {% if config.bundle_chapter_folders %}checked{% endif %}>
+                        <span>
+                            <div class="check-label">Bundle Chapter Folders</div>
+                            <div class="check-hint">A folder of chapter files (CBZ/CBR) becomes one book with chapters, instead of one book per file</div>
                         </span>
                     </label>
                 </div>

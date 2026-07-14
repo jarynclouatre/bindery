@@ -1,3 +1,8 @@
+## v4.0.0
+
+- Added: **Bundle Chapter Folders** toggle in Bindery Settings — with it on, a folder of chapter archives (`.cbz`/`.cbr`/`.zip`/`.rar`) dropped into `Comics_in` converts as one volume with a chapter per file, ordered naturally (`ch2` before `ch10`), instead of one book per file. Off by default, so existing per-file setups are untouched; folders holding PDFs or loose images alongside archives keep the per-file path either way
+- Changed: the quiet window before a dropped folder converts now follows **File Stability Timeout** (with a 30 s floor) instead of a fixed 30 s, so slow downloaders that pause between chapters can extend it
+
 ## v3.6.0 — MozJPEG
 
 - Added: **MozJPEG** toggle in Color and Quality — exposes KCC's `--mozjpeg`, which losslessly recompresses the JPEG pages inside the output book; the pixels are untouched, the files just get smaller, at the cost of slower conversion. Off by default

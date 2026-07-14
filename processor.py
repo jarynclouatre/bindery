@@ -1,6 +1,7 @@
 """File watching, conversion dispatch, and output handling for books and comics."""
 
 import os
+import re
 import sys
 import time
 import uuid
@@ -21,6 +22,11 @@ BOOKS_OUT      = '/Books_out'
 
 BOOK_EXTS  = {'.epub'}
 COMIC_EXTS = {'.cbz', '.cbr', '.zip', '.rar', '.pdf'}
+
+# Archive types 7z can extract for chapter bundling. PDFs are deliberately
+# absent: they can't join an image-directory job and always convert alone.
+BUNDLE_EXTS = {'.cbz', '.cbr', '.zip', '.rar'}
+IMAGE_EXTS  = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 
 # Minimum seconds since the last file modification inside a folder before
 # treating it as ready for KCC. Prevents processing mid-upload.
@@ -259,12 +265,26 @@ def wait_for_file_ready(filepath: str, timeout: int = 60) -> bool:
     return False
 
 
-def _is_dir_stable(dirpath: str) -> bool:
+def _folder_quiet_secs(config: ConfigDict) -> int:
+    """Quiet window a folder must sit unmodified before converting.
+
+    Follows the user's File Stability Timeout so slow downloaders can extend
+    it, but never drops below the FOLDER_STABILITY_SECS floor — a folder fills
+    file-by-file, so a short single-file timeout is not a safe folder window.
+    """
+    try:
+        timeout = int(config.get('file_wait_timeout', 60))
+    except (TypeError, ValueError):
+        timeout = 60
+    return max(FOLDER_STABILITY_SECS, timeout)
+
+
+def _is_dir_stable(dirpath: str, quiet_secs: int = FOLDER_STABILITY_SECS) -> bool:
     """Return True if dirpath is non-empty and no file inside was modified recently.
 
     Walks the directory recursively and checks that the newest mtime is at least
-    FOLDER_STABILITY_SECS seconds in the past. An empty directory returns False —
-    it may still be populated.
+    quiet_secs seconds in the past. An empty directory returns False — it may
+    still be populated.
     """
     newest    = 0.0
     found_any = False
@@ -279,7 +299,7 @@ def _is_dir_stable(dirpath: str) -> bool:
                 pass
     if not found_any:
         return False
-    return (time.time() - newest) >= FOLDER_STABILITY_SECS
+    return (time.time() - newest) >= quiet_secs
 
 
 def get_output_files(directory: str) -> list[str]:
@@ -553,14 +573,16 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
     chapters of one volume. The folder is removed (or archived) on success,
     or renamed to <name>.failed on error.
     """
-    short    = os.path.basename(folderpath)[:40]
-    temp_out = os.path.join('/tmp', uuid.uuid4().hex + '_out')
+    short      = os.path.basename(folderpath)[:40]
+    temp_out   = os.path.join('/tmp', uuid.uuid4().hex + '_out')
+    bundle_tmp = None
 
     try:
         if job_id is None:
             job_id = _register_job(folderpath, 'comic')
 
-        if not _is_dir_stable(folderpath):
+        config = load_config()
+        if not _is_dir_stable(folderpath, _folder_quiet_secs(config)):
             log(f">>> SKIP (not ready): {short}/")
             with job_registry_lock:
                 JOB_REGISTRY.pop(job_id, None)
@@ -569,9 +591,15 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
 
         _update_job(job_id, state='processing', started=_now())
 
-        config = load_config()
+        kcc_input = folderpath
+        chapters  = sum(1 for _r, _d, fs in os.walk(folderpath) for f in fs
+                        if os.path.splitext(f)[1].lower() in BUNDLE_EXTS)
+        if chapters:
+            log(f">>> BUNDLING: extracting {chapters} chapter archives from {short}/")
+            bundle_tmp, kcc_input = _extract_chapter_folder(folderpath)
+
         os.makedirs(temp_out, exist_ok=True)
-        cmd    = _build_kcc_cmd(config, folderpath, temp_out)
+        cmd = _build_kcc_cmd(config, kcc_input, temp_out)
 
         log(f">>> QUEUED (folder): {short}/")
         with kcc_semaphore:
@@ -616,17 +644,90 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
         _notify('failure', short + '/', msg)
     finally:
         shutil.rmtree(temp_out, ignore_errors=True)
+        if bundle_tmp:
+            shutil.rmtree(bundle_tmp, ignore_errors=True)
         with lock_mutex:
             PROCESSING_LOCKS.discard(folderpath)
 
 
-def _contains_comic_archives(dirpath: str) -> bool:
-    """True if any file under dirpath has a comic archive extension."""
+def _is_bundle_folder(dirpath: str, config: ConfigDict | None = None) -> bool:
+    """Decide whether a top-level Comics_in folder converts as one bundled volume.
+
+    Folders holding only images always do — KCC takes the directory as-is.
+    Folders of chapter archives bundle only when Bundle Chapter Folders is
+    enabled, and only if everything comic-typed inside is an extractable
+    archive: PDFs and loose images alongside archives keep the per-file path.
+    """
+    saw_archive = saw_pdf = saw_image = False
     for _root, _dirs, files in os.walk(dirpath):
         for f in files:
-            if os.path.splitext(f)[1].lower() in COMIC_EXTS:
-                return True
-    return False
+            ext = os.path.splitext(f)[1].lower()
+            if ext in BUNDLE_EXTS:
+                saw_archive = True
+            elif ext == '.pdf':
+                saw_pdf = True
+            elif ext in IMAGE_EXTS:
+                saw_image = True
+    if not saw_archive and not saw_pdf:
+        return True
+    if saw_pdf or saw_image:
+        return False
+    if config is None:
+        config = load_config()
+    return bool(config.get('bundle_chapter_folders', False))
+
+
+def _natural_key(s: str) -> list:
+    """Sort key that orders embedded numbers numerically: ch2 before ch10."""
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)]
+
+
+def _extract_chapter_folder(folderpath: str) -> tuple[str, str]:
+    """Extract every chapter archive under folderpath into a directory KCC can
+    bundle: one numbered subfolder per archive, in natural filename order (the
+    prefix matters — KCC sorts chapter dirs lexicographically).
+
+    Returns (temp_parent, kcc_input_dir); the caller removes temp_parent when
+    done. Raises ValueError, with its own temp cleaned up, if extraction fails.
+    """
+    archives: list[str] = []
+    for root, _dirs, files in os.walk(folderpath):
+        for f in files:
+            if os.path.splitext(f)[1].lower() in BUNDLE_EXTS:
+                archives.append(os.path.join(root, f))
+    archives.sort(key=lambda p: _natural_key(os.path.relpath(p, folderpath)))
+
+    temp_parent = os.path.join('/tmp', uuid.uuid4().hex + '_bundle')
+    kcc_input   = os.path.join(temp_parent, os.path.basename(folderpath))
+    try:
+        os.makedirs(kcc_input)
+        for i, arc in enumerate(archives, 1):
+            stem     = os.path.splitext(os.path.basename(arc))[0]
+            chap_dir = os.path.join(kcc_input, f'{i:03d} - {stem}')
+            os.makedirs(chap_dir)
+            r = subprocess.run(['7z', 'x', '-y', '-o' + chap_dir, arc],
+                               capture_output=True, text=True)
+            if r.returncode != 0:
+                raise ValueError(f'could not extract {os.path.basename(arc)}')
+            # Hoist single-directory wrappers (a cbz that is one folder of
+            # pages) so the chapter dir itself holds the images.
+            while True:
+                entries = os.listdir(chap_dir)
+                if len(entries) != 1:
+                    break
+                inner = os.path.join(chap_dir, entries[0])
+                if not os.path.isdir(inner):
+                    break
+                for e in os.listdir(inner):
+                    shutil.move(os.path.join(inner, e), os.path.join(chap_dir, '.' + e + '.hoist'))
+                os.rmdir(inner)
+                for e in os.listdir(chap_dir):
+                    if e.startswith('.') and e.endswith('.hoist'):
+                        os.rename(os.path.join(chap_dir, e), os.path.join(chap_dir, e[1:-6]))
+    except Exception:
+        shutil.rmtree(temp_parent, ignore_errors=True)
+        raise
+    return temp_parent, kcc_input
 
 
 def scan_directories() -> None:
@@ -641,9 +742,11 @@ def scan_directories() -> None:
                         threading.Thread(target=process_file,
                                          args=(path, 'book'), daemon=True).start()
 
-    # Dispatch top-level Comics_in image folders as bundled KCC jobs. Folders
-    # that contain archives are left to the per-file walk below instead — KCC
-    # rejects nested archives ("No images detected") when given such a folder.
+    # Dispatch top-level Comics_in folders that qualify as bundled KCC jobs;
+    # everything else is left to the per-file walk below. KCC rejects nested
+    # archives ("No images detected"), so archive folders only bundle via the
+    # extraction pre-pass, and only when the user enabled it.
+    config = load_config()
     folder_job_names: set[str] = set()
     try:
         top_entries = os.listdir(COMICS_IN)
@@ -653,7 +756,7 @@ def scan_directories() -> None:
         if entry.startswith('.') or entry.endswith('.failed'):
             continue
         full = os.path.join(COMICS_IN, entry)
-        if not os.path.isdir(full) or _contains_comic_archives(full):
+        if not os.path.isdir(full) or not _is_bundle_folder(full, config):
             continue
         folder_job_names.add(entry)
         with lock_mutex:
@@ -718,12 +821,12 @@ def inotify_watch_loop() -> None:
                 parts = rel.split(os.sep)
                 if len(parts) > 1:
                     top = os.path.join(COMICS_IN, parts[0])
-                    if not _contains_comic_archives(top):
-                        # Pure image folder — it's one bundled volume, never
-                        # converted piecemeal. Poke the folder job instead.
+                    if _is_bundle_folder(top):
+                        # Bundle folder — it's one volume, never converted
+                        # piecemeal. Poke the folder job instead.
                         self._maybe_dispatch_dir(top)
                         return
-                    # Folders holding archives convert per-file; fall through.
+                    # Everything else converts per-file; fall through.
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:
                     PROCESSING_LOCKS.add(path)
@@ -741,8 +844,8 @@ def inotify_watch_loop() -> None:
             base = os.path.basename(path)
             if base.startswith('.') or base.endswith('.failed'):
                 return
-            if _contains_comic_archives(path):
-                # Archives inside convert per-file — KCC can't bundle them.
+            if not _is_bundle_folder(path):
+                # Its files convert per-file instead.
                 return
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:

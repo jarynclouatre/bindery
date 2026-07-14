@@ -44,6 +44,7 @@ DEFAULT_CONFIG: ConfigDict = {
     'notify_on_success':     True,
     'notify_on_failure':     True,
     'preserve_originals':    False,
+    'bundle_chapter_folders': False,
 }
 
 _config_lock = threading.Lock()

@@ -547,6 +547,134 @@ def test_scan_directories_archive_folder_converts_per_file(tmp_path):
     assert targets.get(str(folder / 'ch2.cbz')) is processor.process_file
 
 
+def test_scan_directories_bundle_toggle_makes_archive_folder_a_folder_job(tmp_path):
+    """With Bundle Chapter Folders on, an archive folder is one bundled job —
+    its files must never also dispatch individually (that would double-convert
+    and delete sources out from under the bundle)."""
+    config = dict(DEFAULT_CONFIG)
+    config['bundle_chapter_folders'] = True
+    def setup(comics_in):
+        folder = comics_in / 'My Series'
+        folder.mkdir()
+        (folder / 'ch1.cbz').write_bytes(b'x')
+        (folder / 'ch2.cbz').write_bytes(b'x')
+    with patch('processor.load_config', return_value=config):
+        comics_in, targets = _scan_dispatches(tmp_path, setup)
+    folder = comics_in / 'My Series'
+    assert targets.get(str(folder)) is processor.process_folder
+    assert str(folder / 'ch1.cbz') not in targets
+    assert str(folder / 'ch2.cbz') not in targets
+
+
+# ── Chapter bundling ──────────────────────────────────────────────────────────
+
+def _bundle_config(on: bool):
+    config = dict(DEFAULT_CONFIG)
+    config['bundle_chapter_folders'] = on
+    return config
+
+
+def test_is_bundle_folder_image_only_always_bundles(tmp_path):
+    (tmp_path / 'p1.jpg').write_bytes(b'x')
+    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
+    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(True))
+
+
+def test_is_bundle_folder_archives_require_toggle(tmp_path):
+    (tmp_path / 'ch1.cbz').write_bytes(b'x')
+    assert not processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
+    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(True))
+
+
+def test_is_bundle_folder_junk_files_are_tolerated(tmp_path):
+    (tmp_path / 'ch1.cbz').write_bytes(b'x')
+    (tmp_path / 'info.json').write_bytes(b'{}')
+    (tmp_path / 'series.nfo').write_bytes(b'x')
+    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(True))
+
+
+def test_is_bundle_folder_mixed_content_stays_per_file(tmp_path):
+    """PDFs can't join an image-directory job, and loose images alongside
+    archives are ambiguous — both keep today's per-file pipeline."""
+    pdf_dir = tmp_path / 'with_pdf'
+    pdf_dir.mkdir()
+    (pdf_dir / 'ch1.cbz').write_bytes(b'x')
+    (pdf_dir / 'extra.pdf').write_bytes(b'x')
+    assert not processor._is_bundle_folder(str(pdf_dir), _bundle_config(True))
+
+    img_dir = tmp_path / 'with_images'
+    img_dir.mkdir()
+    (img_dir / 'ch1.cbz').write_bytes(b'x')
+    (img_dir / 'cover.jpg').write_bytes(b'x')
+    assert not processor._is_bundle_folder(str(img_dir), _bundle_config(True))
+
+    pdf_only = tmp_path / 'pdf_only'
+    pdf_only.mkdir()
+    (pdf_only / 'book.pdf').write_bytes(b'x')
+    assert not processor._is_bundle_folder(str(pdf_only), _bundle_config(True))
+
+
+def _make_cbz(path, names):
+    import zipfile
+    with zipfile.ZipFile(str(path), 'w') as z:
+        for n in names:
+            z.writestr(n, b'fake page data')
+
+
+def test_extract_chapter_folder_orders_chapters_naturally(tmp_path):
+    folder = tmp_path / 'My Series'
+    folder.mkdir()
+    for name in ('ch10.cbz', 'ch1.cbz', 'ch2.cbz'):
+        _make_cbz(folder / name, ['page1.jpg'])
+
+    temp_parent, kcc_input = processor._extract_chapter_folder(str(folder))
+    try:
+        assert os.path.basename(kcc_input) == 'My Series'
+        chapters = sorted(os.listdir(kcc_input))
+        assert chapters == ['001 - ch1', '002 - ch2', '003 - ch10']
+        for c in chapters:
+            assert os.path.exists(os.path.join(kcc_input, c, 'page1.jpg'))
+    finally:
+        import shutil
+        shutil.rmtree(temp_parent, ignore_errors=True)
+
+
+def test_extract_chapter_folder_hoists_wrapper_directory(tmp_path):
+    """A cbz that is one folder of pages should extract to images at chapter
+    level, not chapter/wrapper/images."""
+    folder = tmp_path / 'Series'
+    folder.mkdir()
+    _make_cbz(folder / 'ch1.cbz', ['wrapper/page1.jpg', 'wrapper/page2.jpg'])
+
+    temp_parent, kcc_input = processor._extract_chapter_folder(str(folder))
+    try:
+        chap = os.path.join(kcc_input, '001 - ch1')
+        assert os.path.exists(os.path.join(chap, 'page1.jpg'))
+        assert not os.path.exists(os.path.join(chap, 'wrapper'))
+    finally:
+        import shutil
+        shutil.rmtree(temp_parent, ignore_errors=True)
+
+
+def test_extract_chapter_folder_failure_cleans_temp_and_raises(tmp_path):
+    folder = tmp_path / 'Series'
+    folder.mkdir()
+    (folder / 'ch1.cbz').write_bytes(b'not a real archive')
+
+    with patch('processor.uuid') as mock_uuid:
+        mock_uuid.uuid4.return_value.hex = 'bundletest'
+        with pytest.raises(ValueError):
+            processor._extract_chapter_folder(str(folder))
+    assert not os.path.exists('/tmp/bundletest_bundle')
+
+
+def test_folder_quiet_secs_follows_timeout_with_floor():
+    assert processor._folder_quiet_secs({'file_wait_timeout': 300}) == 300
+    assert processor._folder_quiet_secs({'file_wait_timeout': 10}) == 30
+    assert processor._folder_quiet_secs({'file_wait_timeout': 'junk'}) == 60
+    assert processor._folder_quiet_secs({}) == 60
+
+
 def test_scan_directories_never_descends_into_failed_folders(tmp_path):
     """Archives inside a <name>.failed folder must not be converted — that
     silently consumes a failed job's source files."""
