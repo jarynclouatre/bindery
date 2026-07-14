@@ -636,8 +636,11 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
                     profile=_profile_for_path(folderpath, config))
 
         kcc_input = folderpath
-        chapters  = sum(1 for _r, _d, fs in os.walk(folderpath) for f in fs
-                        if os.path.splitext(f)[1].lower() in BUNDLE_EXTS)
+        chapters  = 0
+        for _r, _cdirs, fs in os.walk(folderpath):
+            _cdirs[:] = [d for d in _cdirs if not d.startswith('.')]
+            chapters += sum(1 for f in fs
+                            if os.path.splitext(f)[1].lower() in BUNDLE_EXTS)
         if chapters:
             log(f">>> BUNDLING: extracting {chapters} chapter archives from {short}/")
             bundle_tmp, kcc_input = _extract_chapter_folder(folderpath)
@@ -706,9 +709,11 @@ def _is_bundle_folder(dirpath: str, config: ConfigDict | None = None) -> bool:
     enabled, and only if everything comic-typed inside is an extractable
     archive: PDFs and loose images alongside archives keep the per-file path.
     """
-    saw_archive = saw_pdf = saw_image = False
-    for _root, _dirs, files in os.walk(dirpath):
+    saw_archive = saw_pdf = saw_image = saw_file = False
+    for _root, dirs, files in os.walk(dirpath):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
         for f in files:
+            saw_file = True
             ext = os.path.splitext(f)[1].lower()
             if ext in BUNDLE_EXTS:
                 saw_archive = True
@@ -716,6 +721,10 @@ def _is_bundle_folder(dirpath: str, config: ConfigDict | None = None) -> bool:
                 saw_pdf = True
             elif ext in IMAGE_EXTS:
                 saw_image = True
+    if not saw_file:
+        # Nothing inside yet (a deleted profile's leftover folder, or a copy
+        # that hasn't landed) — not a job; the next scan rechecks.
+        return False
     if not saw_archive and not saw_pdf:
         return True
     if saw_pdf or saw_image:
@@ -739,7 +748,8 @@ def _extract_chapter_folder(folderpath: str) -> tuple[str, str]:
     done. Raises ValueError, with its own temp cleaned up, if extraction fails.
     """
     archives: list[str] = []
-    for root, _dirs, files in os.walk(folderpath):
+    for root, dirs, files in os.walk(folderpath):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
         for f in files:
             if os.path.splitext(f)[1].lower() in BUNDLE_EXTS:
                 archives.append(os.path.join(root, f))

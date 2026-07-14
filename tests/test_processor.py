@@ -593,6 +593,39 @@ def test_is_bundle_folder_junk_files_are_tolerated(tmp_path):
     assert processor._is_bundle_folder(str(tmp_path), _bundle_config(True))
 
 
+def test_is_bundle_folder_empty_folder_is_not_a_job(tmp_path):
+    """A deleted profile leaves its folder behind empty; dispatching it would
+    log a SKIP every scan forever."""
+    assert not processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
+    (tmp_path / '.uploading').mkdir()
+    (tmp_path / '.uploading' / 'stale.part').write_bytes(b'x')
+    assert not processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
+
+
+def test_is_bundle_folder_ignores_hidden_directories(tmp_path):
+    (tmp_path / 'p1.jpg').write_bytes(b'x')
+    hidden = tmp_path / '.stversions'
+    hidden.mkdir()
+    (hidden / 'old.cbz').write_bytes(b'x')
+    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
+
+
+def test_extract_chapter_folder_skips_hidden_directories(tmp_path):
+    folder = tmp_path / 'Series'
+    folder.mkdir()
+    _make_cbz(folder / 'ch1.cbz', ['page1.jpg'])
+    hidden = folder / '.stversions'
+    hidden.mkdir()
+    _make_cbz(hidden / 'old.cbz', ['page1.jpg'])
+
+    temp_parent, kcc_input = processor._extract_chapter_folder(str(folder))
+    try:
+        assert sorted(os.listdir(kcc_input)) == ['001 - ch1']
+    finally:
+        import shutil
+        shutil.rmtree(temp_parent, ignore_errors=True)
+
+
 def test_is_bundle_folder_mixed_content_stays_per_file(tmp_path):
     """PDFs can't join an image-directory job, and loose images alongside
     archives are ambiguous — both keep today's per-file pipeline."""
