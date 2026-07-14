@@ -49,6 +49,7 @@ COPY config.py         /app/config.py
 COPY processor.py      /app/processor.py
 COPY raw_processor.py  /app/raw_processor.py
 COPY templates/        /app/templates/
+COPY static/           /app/static/
 COPY entrypoint.sh     /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
