@@ -21,6 +21,7 @@ DEFAULT_CONFIG: ConfigDict = {
     'kcc_colorautocontrast': True,
     'kcc_colorcurve':        False,
     'kcc_eraserainbow':      False,
+    'kcc_mozjpeg':           True,
     'kcc_stretch':           True,
     'kcc_upscale':           False,
     'kcc_nosplitrotate':     False,
