@@ -706,6 +706,8 @@ def test_process_folder_success_removes_source(tmp_path):
     assert not folder.exists()
     job = list(processor.JOB_REGISTRY.values())[0]
     assert job['state'] == 'success'
+    assert job['src_bytes'] == 1
+    assert job['out_bytes'] == 4
 
 
 def test_process_folder_preserve_originals_archives(tmp_path):

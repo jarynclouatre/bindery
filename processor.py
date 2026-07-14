@@ -161,6 +161,23 @@ def _register_job(filepath: str, c_type: str) -> str:
     return job_id
 
 
+def _tree_bytes(path: str) -> int:
+    """Total size of a file, or of every file under a directory."""
+    if os.path.isfile(path):
+        try:
+            return os.path.getsize(path)
+        except OSError:
+            return 0
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    return total
+
+
 def _update_job(job_id: str | None, **kwargs: object) -> None:
     """Update fields on a job entry and persist. No-op if job_id is None or unknown."""
     if job_id is None:
@@ -502,7 +519,8 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             filepath = _strip_leading_dash(filepath, job_id)
             short    = os.path.basename(filepath)[:40]
 
-        _update_job(job_id, state='processing', started=_now())
+        _update_job(job_id, state='processing', started=_now(),
+                    src_bytes=_tree_bytes(filepath))
 
         rel_dir = os.path.relpath(os.path.dirname(filepath), in_base)
         if rel_dir == '.':
@@ -526,6 +544,7 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
 
         produced = get_output_files(temp_out)
         if produced:
+            out_bytes = sum(_tree_bytes(f) for f in produced)
             for f in produced:
                 move_output_file(f, target_dir)
             if os.path.exists(filepath):
@@ -539,7 +558,7 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             count  = len(produced)
             suffix = 's' if count > 1 else ''
             log(f">>> SUCCESS ({count} file{suffix}): {short}")
-            _update_job(job_id, state='success', finished=_now())
+            _update_job(job_id, state='success', finished=_now(), out_bytes=out_bytes)
             _notify('success', os.path.basename(filepath))
         else:
             log(f">>> FAILED (no output file found): {short}")
@@ -589,7 +608,8 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
                 _save_job_registry()
             return
 
-        _update_job(job_id, state='processing', started=_now())
+        _update_job(job_id, state='processing', started=_now(),
+                    src_bytes=_tree_bytes(folderpath))
 
         kcc_input = folderpath
         chapters  = sum(1 for _r, _d, fs in os.walk(folderpath) for f in fs
@@ -609,6 +629,7 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
 
         produced = get_output_files(temp_out)
         if produced:
+            out_bytes = sum(_tree_bytes(f) for f in produced)
             for f in produced:
                 move_output_file(f, COMICS_OUT)
             if os.path.exists(folderpath):
@@ -621,7 +642,7 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
             count  = len(produced)
             suffix = 's' if count > 1 else ''
             log(f">>> SUCCESS ({count} file{suffix}): {short}/")
-            _update_job(job_id, state='success', finished=_now())
+            _update_job(job_id, state='success', finished=_now(), out_bytes=out_bytes)
             _notify('success', short + '/')
         else:
             log(f">>> FAILED (no output file found): {short}/")
