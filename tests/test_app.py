@@ -147,6 +147,19 @@ def test_index_post_editing_profile_saves_kcc_to_profile_only(client, tmp_path):
     assert saved['kcc_profile'] == cfg.DEFAULT_CONFIG['kcc_profile']
 
 
+def test_index_post_editing_missing_profile_keeps_main_kcc(client, tmp_path):
+    """A save against a profile deleted in another tab must not write the
+    stale profile values over the main KCC settings."""
+    config_file = tmp_path / 'settings.json'
+    config_file.write_text(json.dumps(dict(cfg.DEFAULT_CONFIG)))
+
+    saved, _ = _post(client, tmp_path, editing_profile='ghost',
+                     kcc_profile='KPW5', file_wait_timeout='90')
+    assert saved['kcc_profile'] == cfg.DEFAULT_CONFIG['kcc_profile']
+    assert 'ghost' not in saved['profiles']
+    assert saved['file_wait_timeout'] == 90
+
+
 def _upload(client, tmp_path, filename, content=b'data', profile=None):
     from io import BytesIO
     config_file = tmp_path / 'settings.json'

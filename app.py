@@ -265,15 +265,17 @@ def create_app(start_threads: bool = True) -> Flask:
             # is shared and saves globally either way.
             editing = (request.form.get('editing_profile') or '').strip()
             if editing:
+                # If the profile vanished (deleted in another tab), its KCC
+                # values are dropped rather than written over the main ones.
                 disk     = load_config()
                 profiles = disk.get('profiles') or {}
                 if editing in profiles:
                     profiles[editing] = {k: config[k] for k in KCC_KEYS if k in config}
                     disk['profiles']  = profiles
-                    for k, v in config.items():
-                        if k not in KCC_KEYS and k != 'profiles':
-                            disk[k] = v
-                    config = disk
+                for k, v in config.items():
+                    if k not in KCC_KEYS and k != 'profiles':
+                        disk[k] = v
+                config = disk
             save_config(config)
             saved = True
             do_restart = bool(request.form.get('do_restart'))
