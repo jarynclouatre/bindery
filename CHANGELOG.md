@@ -2,6 +2,7 @@
 
 - Added: **Bundle Chapter Folders** toggle in Bindery Settings — with it on, a folder of chapter archives (`.cbz`/`.cbr`/`.zip`/`.rar`) dropped into `Comics_in` converts as one volume with a chapter per file, ordered naturally (`ch2` before `ch10`), instead of one book per file. Off by default, so existing per-file setups are untouched; folders holding PDFs or loose images alongside archives keep the per-file path either way
 - Changed: the quiet window before a dropped folder converts now follows **File Stability Timeout** (with a 30 s floor) instead of a fixed 30 s, so slow downloaders that pause between chapters can extend it
+- Updated: KCC `v10.3.0` → `v10.4.0` — smart-cover-crop crash fix and higher JPEG quality on Scribe/Colorsoft profiles; every flag and device profile Bindery relies on verified unchanged between the tags
 
 ## v3.6.0 — MozJPEG
 
