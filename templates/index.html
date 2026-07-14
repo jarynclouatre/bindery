@@ -502,6 +502,13 @@
                             <div class="check-hint">Slower processing, marginally better image output</div>
                         </span>
                     </label>
+                    <label class="check">
+                        <input type="checkbox" name="kcc_mozjpeg" {% if config.kcc_mozjpeg %}checked{% endif %}>
+                        <span>
+                            <div class="check-label">MozJPEG</div>
+                            <div class="check-hint">Losslessly recompress pages for smaller files, slower processing</div>
+                        </span>
+                    </label>
                 </div>
 
                 <div class="sec">Output Metadata</div>

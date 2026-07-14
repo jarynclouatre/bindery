@@ -171,6 +171,19 @@ def test_build_kcc_cmd_eraserainbow_included_when_set(tmp_path):
     assert '--eraserainbow' in cmd
 
 
+def test_build_kcc_cmd_mozjpeg_off_by_default(tmp_path):
+    config = dict(DEFAULT_CONFIG)
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
+    assert '--mozjpeg' not in cmd
+
+
+def test_build_kcc_cmd_mozjpeg_included_when_set(tmp_path):
+    config = dict(DEFAULT_CONFIG)
+    config['kcc_mozjpeg'] = True
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
+    assert '--mozjpeg' in cmd
+
+
 def test_build_kcc_cmd_other_profile_custom_dims(tmp_path):
     config = dict(DEFAULT_CONFIG)
     config['kcc_profile']      = 'OTHER'

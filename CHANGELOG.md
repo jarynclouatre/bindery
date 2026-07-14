@@ -1,3 +1,7 @@
+## v3.6.0 — MozJPEG
+
+- Added: **MozJPEG** toggle in Color and Quality — exposes KCC's `--mozjpeg`, which losslessly recompresses the JPEG pages inside the output book; the pixels are untouched, the files just get smaller, at the cost of slower conversion. Off by default
+
 ## v3.5.0 — Rainbow Eraser
 
 - Added: **Rainbow Eraser** toggle in Color and Quality — exposes KCC's `--eraserainbow`, which attenuates the interference pattern that colour e-ink screens (Kindle Colorsoft, Kobo Libra Colour) add to colour pages; off by default and only affects colour output
