@@ -285,12 +285,16 @@ def create_app(start_threads: bool = True) -> Flask:
                 with log_lock:
                     logs = list(LOG_BUFFER)
                 return render_template('index.html', config=config, saved=saved,
-                                       logs=logs, version=VERSION, restarting=True)
+                                       logs=logs, version=VERSION, restarting=True,
+                                       kcc_values={k: config[k] for k in KCC_KEYS},
+                                       profiles=config.get('profiles') or {})
 
         with log_lock:
             logs = list(LOG_BUFFER)
 
-        return render_template('index.html', config=config, saved=saved, logs=logs, version=VERSION)
+        return render_template('index.html', config=config, saved=saved, logs=logs, version=VERSION,
+                               kcc_values={k: config[k] for k in KCC_KEYS},
+                               profiles=config.get('profiles') or {})
 
     # WARNING: do not add --preload to gunicorn. These threads must start in the
     # worker process after fork. --preload would start them in the master process,

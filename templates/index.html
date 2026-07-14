@@ -153,23 +153,85 @@
         .file-item:last-child { border-bottom: none; }
         .file-name { color: #d8d8d8; font-size: .84rem; overflow-wrap: anywhere; flex: 1; }
         .file-meta { color: var(--ink-faint); font-size: .74rem; white-space: nowrap; }
-        .btn-dl { padding: 3px 10px; background: #182818; border: 1px solid #2a5a2a;
-                  color: #5db85d; border-radius: 4px; font-size: .72rem; font-weight: 700;
+        .btn-dl { padding: 3px 10px; background: transparent; border: 1px solid #363636;
+                  color: var(--accent); border-radius: 4px; font-size: .72rem; font-weight: 700;
                   text-decoration: none; white-space: nowrap; transition: background .12s; }
-        .btn-dl:hover { background: #1e3a1e; }
+        .btn-dl:hover { background: #1a2a3a; border-color: #2a4a6a; }
         .file-empty { color: var(--ink-faint); font-size: .82rem; text-align: center; padding: 22px 0; }
         .refresh-btn { background: none; border: none; color: #5aabff; font-size: .8rem;
                        cursor: pointer; padding: 0; }
         .refresh-btn:hover { text-decoration: underline; }
+        /* Drop slot */
+        .drop-slot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+                     border: 1px dashed #3a3a3a; border-radius: 8px;
+                     padding: 12px 16px; margin-bottom: 20px; cursor: pointer;
+                     color: var(--ink-soft); font-size: .84rem;
+                     transition: border-color .12s, background .12s, color .12s; }
+        .drop-slot:hover { border-color: #555; color: var(--ink); }
+        .drop-slot.armed { border-color: var(--accent); background: #16202c; color: var(--accent); }
+        .drop-slot .slot-arrow { color: var(--accent); font-size: 1rem; flex-shrink: 0; }
+        .drop-slot .slot-browse { color: var(--accent); text-decoration: underline; }
+        .drop-slot select { width: auto; padding: 5px 8px; font-size: .78rem; }
+        .drop-slot .slot-target { margin-left: auto; display: flex; align-items: center; gap: 8px;
+                                  font-size: .74rem; color: var(--ink-faint); }
+        .upl-list { list-style: none; margin: -8px 0 20px; }
+        .upl-item { display: flex; align-items: center; gap: 10px; padding: 6px 4px;
+                    font-size: .8rem; color: var(--ink-soft); }
+        .upl-item .upl-name { overflow-wrap: anywhere; }
+        .upl-item.done { color: var(--ok); }
+        .upl-item.fail { color: var(--err); }
+        .upl-bar { flex: 1; height: 2px; background: #2a2a2a; border-radius: 1px;
+                   min-width: 60px; overflow: hidden; }
+        .upl-bar i { display: block; height: 100%; width: 0; background: var(--accent);
+                     transition: width .2s; }
+        /* Device profile pills */
+        .profile-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+                       margin-bottom: 6px; }
+        .profile-note { font-size: .74rem; color: var(--ink-faint); margin-bottom: 16px;
+                        min-height: 1em; }
+        .profile-note .prof-del { color: var(--err); background: none; border: none;
+                                  cursor: pointer; font-size: .74rem; padding: 0;
+                                  text-decoration: underline; }
+        .prof-add-form { display: none; align-items: center; gap: 8px; }
+        .prof-add-form.open { display: flex; }
+        .prof-add-form input { width: 150px; padding: 5px 9px; font-size: .8rem; }
+        .prof-add-form .prof-create { padding: 6px 12px; background: var(--accent); color: #0a0a0a;
+                                      border: none; border-radius: 5px; font-size: .76rem;
+                                      font-weight: 700; cursor: pointer; }
+        .profile-err { color: var(--err); font-size: .76rem; }
+        /* Status size delta + profile tag */
+        .col-delta { display: block; font-size: .72rem; color: var(--ink-faint); margin-top: 2px; }
+        .col-delta .delta-pct { color: var(--ok); }
+        .tag { display: inline-block; border: 1px solid #363636; border-radius: 4px;
+               padding: 1px 6px; font-size: .64rem; text-transform: uppercase;
+               letter-spacing: .05em; color: var(--ink-soft); margin-left: 6px;
+               vertical-align: 1px; }
+        /* Save bar */
+        .save-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+                    display: none; background: var(--surface);
+                    border-top: 1px solid #2e2e2e;
+                    padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+        .save-bar.show { display: block; }
+        .save-bar-inner { max-width: 980px; margin: auto; display: flex;
+                          align-items: center; gap: 14px; }
+        .save-state { font-size: .8rem; color: var(--ink-soft); flex: 1;
+                      overflow-wrap: anywhere; }
+        .save-bar .btn { width: auto; margin: 0; padding: 10px 26px; font-size: .88rem; }
+        body.has-savebar { padding-bottom: 76px; }
         .btn:focus-visible, .btn-restart:focus-visible, .btn-retry:focus-visible,
         .btn-dl:focus-visible, .file-tab:focus-visible, .refresh-btn:focus-visible,
-        .check input:focus-visible {
+        .check input:focus-visible, .drop-slot:focus-visible,
+        .prof-add-form input:focus-visible, .prof-create:focus-visible,
+        .prof-del:focus-visible {
             outline: 2px solid var(--accent); outline-offset: 2px;
         }
-        .live-dot { color: #3a5c3a; font-size: .8rem; }
+        .live-dot { color: #4a7a4a; font-size: .8rem; }
         @media (max-width: 760px) {
             body { padding: 16px 10px; }
             .card { padding: 16px 14px; }
+            .drop-slot { padding: 14px 12px; }
+            .drop-slot .slot-target { margin-left: 0; flex-basis: 100%; }
+            .save-bar .btn { padding: 12px 20px; }
             .status-table th:nth-child(2), .status-table td:nth-child(2) { display: none; }
             .status-table td { padding: 10px 8px 10px 0; }
             .col-fn { word-break: normal; overflow-wrap: anywhere; }
@@ -207,6 +269,24 @@
 
     {% if saved %}<div class="alert">Settings saved successfully.</div>{% endif %}
 
+    <div class="drop-slot" id="drop-slot" tabindex="0" role="button"
+         aria-label="Upload books or comics to convert">
+        <span class="slot-arrow">&#10515;</span>
+        <span>Drop books or comics here to convert &mdash; or <span class="slot-browse">browse</span></span>
+        <span class="slot-target" id="slot-target"{% if not profiles %} style="display:none"{% endif %}>
+            comics go to
+            <select id="upload-profile" onclick="event.stopPropagation()">
+                <option value="">Main &mdash; Comics_in</option>
+                {% for name in profiles %}
+                <option value="{{ name }}">{{ name }} &mdash; Comics_in/{{ name }}</option>
+                {% endfor %}
+            </select>
+        </span>
+        <input type="file" id="upload-input" multiple style="display:none"
+               accept=".epub,.cbz,.cbr,.zip,.rar,.pdf">
+    </div>
+    <ul class="upl-list" id="upl-list"></ul>
+
     <div class="card">
         <div class="log-header">
             <h2 class="log-title">Processing Status</h2>
@@ -224,7 +304,7 @@
                     </tr>
                 </thead>
                 <tbody id="status-tbody">
-                    <tr><td colspan="5" class="tbl-empty">No conversions yet &mdash; drop a file into a watched folder and it shows up here.</td></tr>
+                    <tr><td colspan="5" class="tbl-empty">No conversions yet &mdash; drop a file above or into a watched folder and it shows up here.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -261,8 +341,22 @@
 
     <form method="POST">
     <input type="hidden" name="do_restart" id="do_restart" value="">
+    <input type="hidden" name="editing_profile" id="editing_profile" value="">
     <div class="card">
         <h2>KCC — Kindle Comic Converter</h2>
+        <div class="profile-bar" id="profile-bar">
+            <button type="button" class="file-tab active" data-profile="" onclick="switchProfile('')">Main</button>
+            {% for name in profiles %}
+            <button type="button" class="file-tab" data-profile="{{ name }}" onclick="switchProfile('{{ name }}')">{{ name }}</button>
+            {% endfor %}
+            <button type="button" class="file-tab" id="prof-add-btn" onclick="openAddProfile()">+ Add profile</button>
+            <span class="prof-add-form" id="prof-add-form">
+                <input type="text" id="prof-add-name" maxlength="32"
+                       placeholder="e.g. kindle" onclick="event.stopPropagation()">
+                <button type="button" class="prof-create" onclick="createProfile()">Create</button>
+            </span>
+        </div>
+        <div class="profile-note" id="profile-note"></div>
         <div class="grid-3">
 
             <div>
@@ -621,7 +715,12 @@
             <br><button type="button" class="btn-restart" id="restart-btn">Save &amp; Restart</button>
         </div>
     </div>
-    <button type="submit" class="btn" style="margin-top:0">Save Configuration</button>
+    <div class="save-bar" id="save-bar">
+        <div class="save-bar-inner">
+            <span class="save-state" id="save-state">Unsaved changes</span>
+            <button type="submit" class="btn" id="save-btn">Save Configuration</button>
+        </div>
+    </div>
     </form>
 
 </div>
@@ -686,6 +785,10 @@
     if (restartBtn) {
         restartBtn.addEventListener('click', function() {
             document.getElementById('do_restart').value = '1';
+            // form.submit() bypasses the submit event, so stash the profile
+            // context here too or the reload lands back on Main.
+            sessionStorage.setItem('bindery_profile',
+                document.getElementById('editing_profile').value);
             document.querySelector('form').submit();
         });
     }
@@ -717,23 +820,37 @@
         if (secs < 60) return secs + 's';
         return Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
     }
+    function shortDate(iso) {
+        var d = new Date(iso), now = new Date();
+        var opts = {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'};
+        if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+        return d.toLocaleString([], opts);
+    }
     function renderStatusTable(jobs) {
         var tbody = document.getElementById('status-tbody');
         if (!tbody) return;
         if (!jobs.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="tbl-empty">No conversions yet &mdash; drop a file into a watched folder and it shows up here.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="tbl-empty">No conversions yet &mdash; drop a file above or into a watched folder and it shows up here.</td></tr>';
             return;
         }
         var rows = jobs.map(function(j) {
-            var started   = j.created ? new Date(j.created).toLocaleString() : '—';
+            var started   = j.created ? shortDate(j.created) : '—';
             var duration  = (j.state === 'processing' || j.finished)
                 ? ' &middot; ' + fmtDuration(j.started, j.finished) : '';
             var typeLabel = j.type === 'book' ? 'Book' : 'Comic';
+            var tag       = j.profile ? '<span class="tag">' + escHtml(j.profile) + '</span>' : '';
+            var delta     = '';
+            if (j.state === 'success' && j.src_bytes && j.out_bytes) {
+                var pct = Math.round((1 - j.out_bytes / j.src_bytes) * 100);
+                delta = '<span class="col-delta">' + fmtSize(j.src_bytes) + ' &rarr; ' + fmtSize(j.out_bytes) +
+                        (pct > 0 ? ' &middot; <span class="delta-pct">' + pct + '% smaller</span>' : '') +
+                        '</span>';
+            }
             var action    = j.state === 'failed'
                 ? '<button class="btn-retry" onclick="retryJob(\'' + j.id + '\')">Retry</button>'
                 : '';
             return '<tr>' +
-                '<td class="col-fn">' + escHtml(j.filename) + '</td>' +
+                '<td class="col-fn">' + escHtml(j.filename) + tag + delta + '</td>' +
                 '<td class="col-ts">' + typeLabel + '</td>' +
                 '<td><span class="badge badge-' + j.state + '">' + j.state + '</span></td>' +
                 '<td class="col-ts">' + started + duration + '</td>' +
@@ -790,7 +907,7 @@
     }
     function switchTab(tab) {
         activeTab = tab;
-        document.querySelectorAll('.file-tab').forEach(function(t) {
+        document.querySelectorAll('.file-tabs .file-tab').forEach(function(t) {
             t.classList.toggle('active', t.dataset.tab === tab);
         });
         renderFileList(tab);
@@ -803,6 +920,216 @@
     }
     loadFiles();
     setInterval(loadFiles, 30000);
+
+    /* ── Device profiles ── */
+    var kccMain        = {{ kcc_values | tojson }};
+    var profilesData   = {{ profiles | tojson }};
+    var editingProfile = '';
+    var pendingSwitch  = null;
+    var settingsForm   = document.querySelector('form');
+    var formSnap       = '';
+
+    function profileValues(name) {
+        var merged = {};
+        for (var k in kccMain) merged[k] = kccMain[k];
+        var p = profilesData[name] || {};
+        for (var k2 in p) merged[k2] = p[k2];
+        return merged;
+    }
+    function setFormValues(values) {
+        for (var key in values) {
+            var el = settingsForm.querySelector('[name="' + key + '"]');
+            if (!el) continue;
+            if (el.type === 'checkbox') el.checked = !!values[key];
+            else el.value = values[key];
+        }
+        toggleCustomFields();
+    }
+    function formSnapshot() {
+        var parts = [];
+        Array.prototype.forEach.call(settingsForm.elements, function(el) {
+            if (!el.name || el.name === 'do_restart' || el.name === 'editing_profile') return;
+            parts.push(el.name + '=' + (el.type === 'checkbox' ? el.checked : el.value));
+        });
+        return parts.join('&');
+    }
+    function isDirty() { return formSnapshot() !== formSnap; }
+    function markClean() {
+        formSnap = formSnapshot();
+        refreshSaveBar();
+    }
+    function refreshSaveBar() {
+        var bar   = document.getElementById('save-bar');
+        var dirty = isDirty();
+        bar.classList.toggle('show', dirty);
+        document.body.classList.toggle('has-savebar', dirty);
+        document.getElementById('save-state').textContent = editingProfile
+            ? 'Editing profile “' + editingProfile + '” — unsaved changes'
+            : 'Unsaved changes';
+        document.getElementById('save-btn').textContent = editingProfile
+            ? 'Save “' + editingProfile + '” Profile'
+            : 'Save Configuration';
+    }
+    function updateProfileNote() {
+        var note  = document.getElementById('profile-note');
+        var names = Object.keys(profilesData);
+        if (editingProfile) {
+            note.innerHTML = 'Drops in <code>Comics_in/' + escHtml(editingProfile) +
+                '</code> convert with these settings. Books and everything else keep the Main settings. ' +
+                '<button type="button" class="prof-del" onclick="askDeleteProfile()">Delete profile</button>';
+        } else if (names.length) {
+            note.textContent = 'Drops in Comics_in and Books_in convert with these settings. Profiles override the KCC settings for their own folder.';
+        } else {
+            note.textContent = '';
+        }
+    }
+    function switchProfile(name) {
+        if (name === editingProfile) return;
+        if (isDirty() && pendingSwitch !== name) {
+            pendingSwitch = name;
+            var from = editingProfile ? '“' + editingProfile + '”' : 'Main';
+            document.getElementById('profile-note').innerHTML =
+                '<span class="profile-err">Unsaved changes on ' + escHtml(from) +
+                ' — save first, or tap again to discard them.</span>';
+            return;
+        }
+        pendingSwitch  = null;
+        editingProfile = name;
+        document.getElementById('editing_profile').value = name;
+        document.querySelectorAll('#profile-bar .file-tab').forEach(function(t) {
+            if (t.dataset.profile !== undefined)
+                t.classList.toggle('active', t.dataset.profile === name);
+        });
+        setFormValues(name ? profileValues(name) : kccMain);
+        updateProfileNote();
+        markClean();
+    }
+    function openAddProfile() {
+        document.getElementById('prof-add-btn').style.display = 'none';
+        var f = document.getElementById('prof-add-form');
+        f.classList.add('open');
+        document.getElementById('prof-add-name').focus();
+    }
+    function createProfile() {
+        var name = document.getElementById('prof-add-name').value.trim();
+        if (!name) return;
+        fetch('/api/profiles', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'create', name: name})
+        }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, d: d}; }); })
+          .then(function(res) {
+            if (!res.ok) {
+                document.getElementById('profile-note').innerHTML =
+                    '<span class="profile-err">' + escHtml(res.d.error || 'Could not create profile') + '</span>';
+                return;
+            }
+            sessionStorage.setItem('bindery_profile', name);
+            location.reload();
+        }).catch(function(){});
+    }
+    function askDeleteProfile() {
+        var note = document.getElementById('profile-note');
+        note.innerHTML = 'Delete “' + escHtml(editingProfile) + '”? Its folders and files stay — ' +
+            'future drops there use the Main settings. ' +
+            '<button type="button" class="prof-del" onclick="deleteProfile()">Yes, delete</button> &nbsp;' +
+            '<button type="button" class="prof-del" style="color:var(--ink-soft)" onclick="updateProfileNote()">Keep it</button>';
+    }
+    function deleteProfile() {
+        fetch('/api/profiles', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'delete', name: editingProfile})
+        }).then(function() {
+            sessionStorage.setItem('bindery_profile', '');
+            location.reload();
+        }).catch(function(){});
+    }
+    var addNameInput = document.getElementById('prof-add-name');
+    if (addNameInput) addNameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); createProfile(); }
+    });
+
+    settingsForm.addEventListener('input',  refreshSaveBar);
+    settingsForm.addEventListener('change', refreshSaveBar);
+    settingsForm.addEventListener('submit', function() {
+        sessionStorage.setItem('bindery_profile', editingProfile);
+    });
+    markClean();
+    updateProfileNote();
+    (function restoreProfileContext() {
+        var last = sessionStorage.getItem('bindery_profile');
+        sessionStorage.removeItem('bindery_profile');
+        if (last && profilesData[last] !== undefined) switchProfile(last);
+    })();
+
+    /* ── Upload ── */
+    var dropSlot    = document.getElementById('drop-slot');
+    var uploadInput = document.getElementById('upload-input');
+    var uplList     = document.getElementById('upl-list');
+    var dragTimer   = null;
+
+    dropSlot.addEventListener('click', function() { uploadInput.click(); });
+    dropSlot.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); uploadInput.click(); }
+    });
+    uploadInput.addEventListener('change', function() {
+        uploadFiles(uploadInput.files);
+        uploadInput.value = '';
+    });
+    window.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropSlot.classList.add('armed');
+        clearTimeout(dragTimer);
+        dragTimer = setTimeout(function() { dropSlot.classList.remove('armed'); }, 250);
+    });
+    window.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropSlot.classList.remove('armed');
+        if (e.dataTransfer && e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+    });
+
+    function uploadFiles(fileList) {
+        Array.prototype.forEach.call(fileList, function(file) {
+            var li = document.createElement('li');
+            li.className = 'upl-item';
+            li.innerHTML = '<span class="upl-name">' + escHtml(file.name) + '</span>' +
+                           '<span class="upl-bar"><i></i></span><span class="upl-msg"></span>';
+            uplList.appendChild(li);
+            var bar = li.querySelector('.upl-bar i');
+            var msg = li.querySelector('.upl-msg');
+
+            var fd = new FormData();
+            fd.append('files', file);
+            var profSel = document.getElementById('upload-profile');
+            if (profSel && profSel.value) fd.append('profile', profSel.value);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/upload');
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) bar.style.width = Math.round(e.loaded / e.total * 100) + '%';
+            };
+            xhr.onload = function() {
+                var res = {};
+                try { res = JSON.parse(xhr.responseText); } catch (e) {}
+                var f = (res.files || [])[0] || {};
+                if (xhr.status === 200 && f.ok) {
+                    li.className = 'upl-item done';
+                    msg.textContent = 'uploaded — converting shortly';
+                    setTimeout(function() { li.remove(); }, 10000);
+                } else {
+                    li.className = 'upl-item fail';
+                    msg.textContent = f.error || res.error || 'upload failed';
+                }
+            };
+            xhr.onerror = function() {
+                li.className = 'upl-item fail';
+                msg.textContent = 'upload failed — check the connection and try again';
+            };
+            xhr.send(fd);
+        });
+    }
 </script>
+<noscript><style>.save-bar { display: block; position: static; }</style></noscript>
 </body>
 </html>
