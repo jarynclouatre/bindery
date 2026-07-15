@@ -1,3 +1,10 @@
+## v4.2.0 — Light Mode, Dashboards & ComicInfo
+
+- Added: **Light theme** — the WebUI follows your system's light or dark setting, with a toggle in the header that remembers your choice (no flash on load). Dark stays the default, and the activity log keeps its terminal look in both themes
+- Added: **`/api/stats` endpoint** for home-lab dashboards — lifetime conversions and space saved, plus the live queue, ready to drop into a [Homepage](https://gethomepage.dev/) widget or an Uptime Kuma monitor; setup is in the README
+- Added: **Use ComicInfo.xml Metadata** toggle in the KCC settings — when a comic archive carries a `ComicInfo.xml`, its series, number, and title become the converted book's metadata, so a `Chapter 1 (2).cbz` still lands on the reader as *Berserk #001: The Black Swordsman*. Off by default; falls back to the filename when there's no metadata
+- Note: the image is multi-arch and always has been — it runs on x86 and ARM64, so a Raspberry Pi or ARM NAS works too (now called out in the README)
+
 ## v4.1.0 — Keep Originals In Place
 
 - Added: the **Originals** setting now offers a third choice, **Keep in place** — the source comic is left exactly where it is after conversion, neither deleted nor moved to `.archive`. It's for readers who point `Comics_in` and `Comics_out` at the same folder (with a library manager like Calibre or Kavita) and want the original file and the converted book to sit side by side. Bindery remembers what it has already converted, so a kept source is never re-converted on the next scan, and re-converts on its own only when you drop a changed copy over it. The old Preserve Originals checkbox becomes the "Move to `Comics_in/.archive`" option — existing setups keep their current behaviour, and anyone who never picks Keep in place sees no change

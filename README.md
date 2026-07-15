@@ -17,7 +17,7 @@ A self-hosted, Dockerized converter that automatically processes e-books and com
 
 **For all devices:** Converts comic archives and PDFs (`.cbz`, `.cbr`, `.zip`, `.rar`, `.pdf`) into device-optimised files using [Kindle Comic Converter (KCC)](https://github.com/ciromattia/kcc), with full control over profile, cropping, splitting, gamma, and more.
 
-All settings are configurable at runtime via a WebUI on port 5000 — no container rebuild needed. Supports `PUID`/`PGID` permission mapping for NAS and multi-user environments, and the image is multi-arch — it runs on x86 and ARM64, so a Raspberry Pi 4/5 or an ARM NAS works too.
+All settings are configurable at runtime via a WebUI on port 5000 — no container rebuild needed; the interface has light and dark themes that follow your system, with a header toggle to override. Supports `PUID`/`PGID` permission mapping for NAS and multi-user environments, and the image is multi-arch — it runs on x86 and ARM64, so a Raspberry Pi 4/5 or an ARM NAS works too.
 
 **Supported devices:** Kindle, Kobo, reMarkable, and any device KCC has a profile for.
 
