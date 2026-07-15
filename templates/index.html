@@ -714,14 +714,16 @@
                            value="{{ config.file_wait_timeout }}">
                 </div>
                 <p class="note">How long to wait for a file to finish transferring before skipping it. Dropped folders also wait at least this long after their last change. Increase for slow network drives. Range: 10–300 s.</p>
+                <div class="field" style="margin-top:14px">
+                    <label class="lbl">Originals</label>
+                    <select name="originals" id="originals">
+                        <option value="delete"  {% if config.originals == "delete"  %}selected{% endif %}>Delete after converting</option>
+                        <option value="archive" {% if config.originals == "archive" %}selected{% endif %}>Move to Comics_in/.archive</option>
+                        <option value="keep"    {% if config.originals == "keep"    %}selected{% endif %}>Keep in place</option>
+                    </select>
+                </div>
+                <p class="note">What happens to each source comic once it converts: delete it, move it into a hidden <code>Comics_in/.archive</code> folder, or keep it exactly where it is. Keep in place is for pointing Comics_in and Comics_out at one folder, so the source sits beside the converted book. Books are always removed after conversion.</p>
                 <div class="checks" style="margin-top:14px">
-                    <label class="check">
-                        <input type="checkbox" name="preserve_originals" {% if config.preserve_originals %}checked{% endif %}>
-                        <span>
-                            <div class="check-label">Preserve Originals</div>
-                            <div class="check-hint">Move source comics to <code>Comics_in/.archive</code> after conversion instead of deleting them</div>
-                        </span>
-                    </label>
                     <label class="check">
                         <input type="checkbox" name="bundle_chapter_folders" {% if config.bundle_chapter_folders %}checked{% endif %}>
                         <span>

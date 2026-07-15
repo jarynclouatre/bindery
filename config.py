@@ -43,7 +43,7 @@ DEFAULT_CONFIG: ConfigDict = {
     'apprise_urls':          '',
     'notify_on_success':     True,
     'notify_on_failure':     True,
-    'preserve_originals':    False,
+    'originals':             'delete',
     'bundle_chapter_folders': False,
     'profiles':              {},
 }
@@ -65,6 +65,12 @@ def load_config() -> ConfigDict:
             try:
                 with open(CONFIG_FILE, 'r') as f:
                     config: ConfigDict = json.load(f)
+                # Older configs stored a preserve_originals bool; map it onto originals.
+                if 'preserve_originals' in config:
+                    config.setdefault(
+                        'originals',
+                        'archive' if config['preserve_originals'] else 'delete')
+                    del config['preserve_originals']
                 for k, v in DEFAULT_CONFIG.items():
                     if k not in config:
                         config[k] = v

@@ -54,6 +54,12 @@ JOB_REGISTRY: dict[str, dict] = {}
 job_registry_lock = threading.Lock()
 MAX_JOBS = 500
 
+# Sources converted in Keep-in-place mode stay in the watch folder; their
+# path+signature is remembered here so the scanner does not re-convert them.
+CONVERTED_FILE = '/app/config/converted.json'
+CONVERTED_LEDGER: dict[str, str] = {}
+converted_lock = threading.Lock()
+
 
 def log(msg: str) -> None:
     line = msg.rstrip()
@@ -123,6 +129,78 @@ def _save_job_registry() -> None:
         os.replace(tmp, JOBS_FILE)
     except OSError:
         pass
+
+
+def _ledger_signature(path: str) -> str:
+    """A cheap fingerprint used to tell whether a source changed since it was
+    last converted. Files use size and mtime; folders aggregate the count, total
+    size, and newest mtime beneath them, skipping dot-dirs so Syncthing and
+    .uploading scratch never shift the result. Empty string if it can't be read."""
+    try:
+        if os.path.isdir(path):
+            count = total = latest = 0
+            for root, dirs, files in os.walk(path):
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                for f in files:
+                    try:
+                        st = os.stat(os.path.join(root, f))
+                    except OSError:
+                        continue
+                    count  += 1
+                    total  += st.st_size
+                    latest  = max(latest, int(st.st_mtime))
+            return f'{count}:{total}:{latest}'
+        st = os.stat(path)
+        return f'{st.st_size}:{int(st.st_mtime)}'
+    except OSError:
+        return ''
+
+
+def _load_converted_ledger() -> None:
+    """Load the keep-in-place ledger from disk on startup (see _load_job_registry
+    for the .update() rationale)."""
+    try:
+        with open(CONVERTED_FILE) as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            with converted_lock:
+                CONVERTED_LEDGER.update(
+                    (k, v) for k, v in data.items() if isinstance(v, str))
+    except (OSError, json.JSONDecodeError):
+        pass
+
+
+def _save_converted_ledger() -> None:
+    """Atomically write the ledger to disk. Caller must hold converted_lock."""
+    try:
+        os.makedirs(os.path.dirname(CONVERTED_FILE), exist_ok=True)
+        tmp = CONVERTED_FILE + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(CONVERTED_LEDGER, f)
+        os.replace(tmp, CONVERTED_FILE)
+    except OSError:
+        pass
+
+
+def _already_converted(path: str) -> bool:
+    """True if path was converted before and has not changed since. Entries are
+    never dropped for a missing path: a NAS mount blip must not wipe the ledger
+    and re-convert a whole library."""
+    sig = _ledger_signature(path)
+    if not sig:
+        return False
+    with converted_lock:
+        return CONVERTED_LEDGER.get(path) == sig
+
+
+def _mark_converted(path: str) -> None:
+    """Record path+signature so the scanner skips it while it sits in place."""
+    sig = _ledger_signature(path)
+    if not sig:
+        return
+    with converted_lock:
+        CONVERTED_LEDGER[path] = sig
+        _save_converted_ledger()
 
 
 def _now() -> str:
@@ -571,13 +649,18 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             for f in produced:
                 move_output_file(f, target_dir)
             if os.path.exists(filepath):
-                if c_type == 'comic' and config.get('preserve_originals', False):
+                # Books never keep or archive their source; only comics do.
+                mode = config.get('originals', 'delete') if c_type == 'comic' else 'delete'
+                if mode == 'keep':
+                    _mark_converted(filepath)
+                elif mode == 'archive':
                     _dest = os.path.join(COMICS_ARCHIVE, os.path.relpath(filepath, COMICS_IN))
                     os.makedirs(os.path.dirname(_dest), exist_ok=True)
                     shutil.move(filepath, _collision_free(_dest))
+                    prune_empty_dirs(filepath, in_base)
                 else:
                     os.remove(filepath)
-                prune_empty_dirs(filepath, in_base)
+                    prune_empty_dirs(filepath, in_base)
             count  = len(produced)
             suffix = 's' if count > 1 else ''
             log(f">>> SUCCESS ({count} file{suffix}): {short}")
@@ -663,7 +746,10 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
             for f in produced:
                 move_output_file(f, out_dir)
             if os.path.exists(folderpath):
-                if config.get('preserve_originals', False):
+                mode = config.get('originals', 'delete')
+                if mode == 'keep':
+                    _mark_converted(folderpath)
+                elif mode == 'archive':
                     _dest = os.path.join(COMICS_ARCHIVE, os.path.relpath(folderpath, COMICS_IN))
                     os.makedirs(os.path.dirname(_dest), exist_ok=True)
                     shutil.move(folderpath, _collision_free(_dest))
@@ -811,6 +897,9 @@ def scan_directories() -> None:
     profile_names = set(config.get('profiles') or {})
     comic_roots   = [COMICS_IN] + [os.path.join(COMICS_IN, n) for n in sorted(profile_names)
                                    if os.path.isdir(os.path.join(COMICS_IN, n))]
+    # In Keep-in-place mode a converted source stays put, so skip anything the
+    # ledger already knows. Other modes remove the source, so no check is needed.
+    keep_mode     = config.get('originals') == 'keep'
 
     for base in comic_roots:
         is_main = (base == COMICS_IN)
@@ -828,6 +917,8 @@ def scan_directories() -> None:
             if not os.path.isdir(full) or not _is_bundle_folder(full, config):
                 continue
             folder_job_names.add(entry)
+            if keep_mode and _already_converted(full):
+                continue
             with lock_mutex:
                 if full not in PROCESSING_LOCKS:
                     PROCESSING_LOCKS.add(full)
@@ -843,6 +934,8 @@ def scan_directories() -> None:
             for f in files:
                 if os.path.splitext(f)[1].lower() in COMIC_EXTS and not f.endswith('.failed'):
                     path = os.path.join(root, f)
+                    if keep_mode and _already_converted(path):
+                        continue
                     with lock_mutex:
                         if path not in PROCESSING_LOCKS:
                             PROCESSING_LOCKS.add(path)
@@ -903,6 +996,8 @@ def inotify_watch_loop() -> None:
                         self._maybe_dispatch_dir(top)
                         return
                     # Everything else converts per-file; fall through.
+                if config.get('originals') == 'keep' and _already_converted(path):
+                    return
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:
                     PROCESSING_LOCKS.add(path)
@@ -930,6 +1025,8 @@ def inotify_watch_loop() -> None:
                 return
             if not _is_bundle_folder(path, config):
                 # Its files convert per-file instead.
+                return
+            if config.get('originals') == 'keep' and _already_converted(path):
                 return
             with lock_mutex:
                 if path not in PROCESSING_LOCKS:

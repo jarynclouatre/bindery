@@ -72,6 +72,30 @@ def test_validate_post_watcher_mode_invalid(client, tmp_path):
     assert saved['watcher_mode'] == 'poll'
 
 
+def test_index_get_shows_originals_control(client):
+    resp = client.get('/')
+    assert b'name="originals"' in resp.data
+    for value in (b'value="delete"', b'value="archive"', b'value="keep"'):
+        assert value in resp.data
+
+
+def test_post_originals_keep_saves(client, tmp_path):
+    saved, _ = _post(client, tmp_path, originals='keep')
+    assert saved['originals'] == 'keep'
+
+
+def test_validate_post_originals_invalid(client, tmp_path):
+    saved, _ = _post(client, tmp_path, originals='wipe-everything')
+    assert saved['originals'] == 'delete'
+
+
+def test_post_defaults_originals_to_delete(client, tmp_path):
+    # A form that omits the field (older cached page) must not silently enable
+    # keep/archive.
+    saved, _ = _post(client, tmp_path)
+    assert saved['originals'] == 'delete'
+
+
 def test_validate_post_saves_apprise_url(client, tmp_path):
     saved, _ = _post(client, tmp_path,
                      apprise_urls='ntfy://server/bindery',

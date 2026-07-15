@@ -432,7 +432,7 @@ def test_wait_for_file_ready_oserror_resets_counter(tmp_path):
         assert processor.wait_for_file_ready(str(f), timeout=60) is True
 
 
-# ── preserve_originals / .archive ─────────────────────────────────────────────
+# ── originals: delete / archive / keep ────────────────────────────────────────
 
 def test_scan_directories_skips_archive(tmp_path):
     """Files inside .archive must never be dispatched for conversion."""
@@ -453,8 +453,8 @@ def test_scan_directories_skips_archive(tmp_path):
     mock_threading.Thread.assert_not_called()
 
 
-def test_process_file_preserve_originals(tmp_path):
-    """With preserve_originals=True, source file moves to .archive (mirroring
+def test_process_file_originals_archive(tmp_path):
+    """With originals='archive', source file moves to .archive (mirroring
     subfolder structure) instead of being deleted."""
     comics_in      = tmp_path / 'comics_in'
     comics_archive = comics_in / '.archive'
@@ -463,7 +463,7 @@ def test_process_file_preserve_originals(tmp_path):
     src.write_bytes(b'fake cbz')
 
     mock_config = dict(DEFAULT_CONFIG)
-    mock_config['preserve_originals'] = True
+    mock_config['originals'] = 'archive'
 
     with patch.object(processor, 'COMICS_IN',       str(comics_in)), \
          patch.object(processor, 'COMICS_OUT',      str(tmp_path / 'comics_out')), \
@@ -477,6 +477,32 @@ def test_process_file_preserve_originals(tmp_path):
 
     assert not src.exists(), 'source should not remain in comics_in'
     assert (comics_archive / 'test.cbz').exists(), 'source should be in .archive'
+
+
+def test_process_file_originals_keep(tmp_path):
+    """With originals='keep', the source stays exactly where it is and is
+    recorded in the ledger so the scanner won't re-convert it."""
+    comics_in = tmp_path / 'comics_in'
+    comics_in.mkdir()
+    src = comics_in / 'test.cbz'
+    src.write_bytes(b'fake cbz')
+
+    mock_config = dict(DEFAULT_CONFIG)
+    mock_config['originals'] = 'keep'
+
+    with patch.object(processor, 'COMICS_IN',         str(comics_in)), \
+         patch.object(processor, 'COMICS_OUT',        str(tmp_path / 'comics_out')), \
+         patch.object(processor, 'CONVERTED_FILE',    str(tmp_path / 'converted.json')), \
+         patch('processor.load_config',        return_value=mock_config), \
+         patch('processor.wait_for_file_ready', return_value=True), \
+         patch('processor._run_conversion',     return_value=None), \
+         patch('processor.get_output_files',    return_value=[str(tmp_path / 'fake.epub')]), \
+         patch('processor.move_output_file',    return_value=None):
+        processor.CONVERTED_LEDGER.clear()
+        processor.process_file(str(src), 'comic')
+
+    assert src.exists(), 'source must stay in place'
+    assert processor._already_converted(str(src)) is True
 
 
 def test_scan_directories_skips_dot_folders(tmp_path):
@@ -716,14 +742,14 @@ def test_profile_for_path_matches_only_created_profiles(tmp_path):
 def test_config_for_path_applies_profile_kcc_only(tmp_path):
     config = dict(DEFAULT_CONFIG)
     config['profiles'] = {'kobo': {'kcc_profile': 'KPW5', 'kcc_manga_style': True}}
-    config['preserve_originals'] = True
+    config['originals'] = 'keep'
     with patch.object(processor, 'COMICS_IN', str(tmp_path)), \
          patch('processor.load_config', return_value=config):
         inside  = processor._config_for_path(str(tmp_path / 'kobo' / 'x.cbz'))
         outside = processor._config_for_path(str(tmp_path / 'x.cbz'))
     assert inside['kcc_profile'] == 'KPW5'
     assert inside['kcc_manga_style'] is True
-    assert inside['preserve_originals'] is True
+    assert inside['originals'] == 'keep'
     assert outside['kcc_profile'] == DEFAULT_CONFIG['kcc_profile']
     assert outside['kcc_manga_style'] is False
 
@@ -791,7 +817,7 @@ def test_process_folder_success_removes_source(tmp_path):
     assert job['out_bytes'] == 4
 
 
-def test_process_folder_preserve_originals_archives(tmp_path):
+def test_process_folder_originals_archive(tmp_path):
     comics_in = tmp_path / 'comics_in'
     archive   = comics_in / '.archive'
     folder    = comics_in / 'Batman'
@@ -801,7 +827,7 @@ def test_process_folder_preserve_originals_archives(tmp_path):
     fake_out = tmp_path / 'fake.epub'
     fake_out.write_bytes(b'epub')
     config = dict(DEFAULT_CONFIG)
-    config['preserve_originals'] = True
+    config['originals'] = 'archive'
 
     with patch.object(processor, 'COMICS_IN', str(comics_in)), \
          patch.object(processor, 'COMICS_ARCHIVE', str(archive)), \
@@ -815,6 +841,34 @@ def test_process_folder_preserve_originals_archives(tmp_path):
 
     assert not folder.exists()
     assert (archive / 'Batman' / 'p1.jpg').exists()
+
+
+def test_process_folder_originals_keep(tmp_path):
+    """With originals='keep', the folder job is left in place and recorded."""
+    comics_in = tmp_path / 'comics_in'
+    folder    = comics_in / 'Batman'
+    comics_in.mkdir()
+    folder.mkdir()
+    (folder / 'p1.jpg').write_bytes(b'x')
+    fake_out = tmp_path / 'fake.epub'
+    fake_out.write_bytes(b'epub')
+    config = dict(DEFAULT_CONFIG)
+    config['originals'] = 'keep'
+
+    with patch.object(processor, 'COMICS_IN', str(comics_in)), \
+         patch.object(processor, 'COMICS_OUT', str(tmp_path / 'out')), \
+         patch.object(processor, 'CONVERTED_FILE', str(tmp_path / 'converted.json')), \
+         patch('processor.load_config', return_value=config), \
+         patch('processor._is_dir_stable', return_value=True), \
+         patch('processor._run_conversion', return_value=None), \
+         patch('processor.get_output_files', return_value=[str(fake_out)]), \
+         patch('processor.move_output_file', return_value=None):
+        processor.CONVERTED_LEDGER.clear()
+        processor.process_folder(str(folder))
+
+    assert folder.exists(), 'folder must stay in place'
+    assert (folder / 'p1.jpg').exists()
+    assert processor._already_converted(str(folder)) is True
 
 
 def test_process_folder_failure_keeps_earlier_failed_folder(tmp_path):
@@ -852,3 +906,115 @@ def test_strip_leading_dash_renames_and_updates_job(tmp_path):
     assert (tmp_path / 'Batman.cbz').exists()
     assert not src.exists()
     assert processor.JOB_REGISTRY[job_id]['filepath'] == newpath
+
+
+# ── converted ledger (keep-in-place guard) ────────────────────────────────────
+
+def test_converted_ledger_marks_and_recognizes(tmp_path):
+    src = tmp_path / 'Book.cbz'
+    src.write_bytes(b'hello')
+    with patch.object(processor, 'CONVERTED_FILE', str(tmp_path / 'converted.json')):
+        processor.CONVERTED_LEDGER.clear()
+        assert processor._already_converted(str(src)) is False
+        processor._mark_converted(str(src))
+        assert processor._already_converted(str(src)) is True
+
+
+def test_converted_ledger_detects_changed_source(tmp_path):
+    """A replaced copy (different size/mtime) is not treated as already done."""
+    src = tmp_path / 'Book.cbz'
+    src.write_bytes(b'hello')
+    with patch.object(processor, 'CONVERTED_FILE', str(tmp_path / 'converted.json')):
+        processor.CONVERTED_LEDGER.clear()
+        processor._mark_converted(str(src))
+        assert processor._already_converted(str(src)) is True
+        src.write_bytes(b'a bigger, different payload')
+        assert processor._already_converted(str(src)) is False
+
+
+def test_converted_ledger_persists_across_reload(tmp_path):
+    src = tmp_path / 'Book.cbz'
+    src.write_bytes(b'hello')
+    with patch.object(processor, 'CONVERTED_FILE', str(tmp_path / 'converted.json')):
+        processor.CONVERTED_LEDGER.clear()
+        processor._mark_converted(str(src))
+        processor.CONVERTED_LEDGER.clear()
+        processor._load_converted_ledger()
+        assert processor._already_converted(str(src)) is True
+
+
+def test_ledger_signature_folder_tracks_contents_ignores_dot_dirs(tmp_path):
+    folder = tmp_path / 'Series'
+    folder.mkdir()
+    (folder / 'ch1.cbz').write_bytes(b'x')
+    sig1 = processor._ledger_signature(str(folder))
+    (folder / 'ch2.cbz').write_bytes(b'yy')
+    sig2 = processor._ledger_signature(str(folder))
+    assert sig1 != sig2, 'gaining a chapter must change the signature'
+    stfolder = folder / '.stfolder'
+    stfolder.mkdir()
+    (stfolder / 'junk').write_bytes(b'zzz')
+    assert processor._ledger_signature(str(folder)) == sig2, 'dot-dirs must not count'
+
+
+def test_scan_skips_already_converted_in_keep_mode(tmp_path):
+    """In keep mode the scanner does not re-dispatch a source the ledger already
+    knows, but does re-dispatch one that changed on disk."""
+    comics_in = tmp_path / 'comics_in'
+    books_in  = tmp_path / 'books_in'
+    comics_in.mkdir()
+    books_in.mkdir()
+    src = comics_in / 'Book.cbz'
+    src.write_bytes(b'hello')
+
+    config = dict(DEFAULT_CONFIG)
+    config['originals'] = 'keep'
+
+    def run(mark):
+        dispatched = []
+        with patch.object(processor, 'COMICS_IN', str(comics_in)), \
+             patch.object(processor, 'BOOKS_IN',  str(books_in)), \
+             patch.object(processor, 'CONVERTED_FILE', str(tmp_path / 'converted.json')), \
+             patch('processor.load_config', return_value=config), \
+             patch('processor.threading') as mock_threading:
+            def _fake(target, args, daemon): dispatched.append(args[0]); return MagicMock()
+            mock_threading.Thread = MagicMock(side_effect=_fake)
+            processor.PROCESSING_LOCKS.clear()
+            if mark:
+                processor._mark_converted(str(src))
+            processor.scan_directories()
+        return dispatched
+
+    processor.CONVERTED_LEDGER.clear()
+    assert str(src) in run(mark=False), 'unconverted source should dispatch'
+    assert str(src) not in run(mark=True), 'converted, unchanged source should be skipped'
+    src.write_bytes(b'a different, larger payload')
+    assert str(src) in run(mark=False), 'a changed source should dispatch again'
+
+
+def test_scan_ignores_ledger_when_not_keep_mode(tmp_path):
+    """delete/archive modes always dispatch — the ledger guard is keep-only."""
+    comics_in = tmp_path / 'comics_in'
+    books_in  = tmp_path / 'books_in'
+    comics_in.mkdir()
+    books_in.mkdir()
+    src = comics_in / 'Book.cbz'
+    src.write_bytes(b'hello')
+
+    config = dict(DEFAULT_CONFIG)
+    config['originals'] = 'archive'
+
+    dispatched = []
+    with patch.object(processor, 'COMICS_IN', str(comics_in)), \
+         patch.object(processor, 'BOOKS_IN',  str(books_in)), \
+         patch.object(processor, 'CONVERTED_FILE', str(tmp_path / 'converted.json')), \
+         patch('processor.load_config', return_value=config), \
+         patch('processor.threading') as mock_threading:
+        def _fake(target, args, daemon): dispatched.append(args[0]); return MagicMock()
+        mock_threading.Thread = MagicMock(side_effect=_fake)
+        processor.PROCESSING_LOCKS.clear()
+        processor.CONVERTED_LEDGER.clear()
+        processor._mark_converted(str(src))
+        processor.scan_directories()
+
+    assert str(src) in dispatched, 'archive mode must ignore the ledger'

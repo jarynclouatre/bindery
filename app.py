@@ -12,7 +12,7 @@ from flask import Flask, jsonify, request, render_template, send_file
 from config import DEFAULT_CONFIG, KCC_KEYS, load_config, save_config, ConfigDict
 from processor import (
     LOG_BUFFER, log_lock, log, watch_loop, inotify_watch_loop,
-    _load_log_history, _load_job_registry, _collision_free,
+    _load_log_history, _load_job_registry, _load_converted_ledger, _collision_free,
     JOB_REGISTRY, job_registry_lock, retry_file,
     BOOK_EXTS, COMIC_EXTS,
     BOOKS_IN, BOOKS_OUT, COMICS_IN, COMICS_OUT,
@@ -73,6 +73,9 @@ def _validate_post(config: ConfigDict) -> ConfigDict:
 
     if config.get('watcher_mode') not in ('poll', 'inotify'):
         config['watcher_mode'] = 'poll'
+
+    if config.get('originals') not in ('delete', 'archive', 'keep'):
+        config['originals'] = 'delete'
 
     config['apprise_urls'] = config.get('apprise_urls', '')
 
@@ -252,11 +255,12 @@ def create_app(start_threads: bool = True) -> Flask:
                         'kcc_stretch', 'kcc_upscale', 'kcc_nosplitrotate', 'kcc_rotate',
                         'kcc_metadatatitle', 'kcc_nokepub',
                         'notify_on_success', 'notify_on_failure',
-                        'preserve_originals', 'bundle_chapter_folders'):
+                        'bundle_chapter_folders'):
                 config[key] = key in request.form
             config['file_wait_timeout'] = request.form.get(
                 'file_wait_timeout', DEFAULT_CONFIG.get('file_wait_timeout', 60))
             config['watcher_mode']  = request.form.get('watcher_mode', 'poll')
+            config['originals']     = request.form.get('originals', 'delete')
             config['apprise_urls']  = request.form.get('apprise_urls', '')
             config = _validate_post(config)
 
@@ -304,6 +308,7 @@ def create_app(start_threads: bool = True) -> Flask:
     if start_threads:
         _load_log_history()
         _load_job_registry()
+        _load_converted_ledger()
         _mode = load_config().get('watcher_mode', 'poll')
         if _mode == 'inotify':
             log(">>> Bindery started. Watching /Books_in, /Comics_in, and /Comics_raw via inotify.")

@@ -85,11 +85,44 @@ def test_save_config_atomic_no_partial_file_on_error(tmp_path):
 
 def test_profile_overrides_merges_kcc_keys_only():
     config = dict(cfg.DEFAULT_CONFIG)
-    config['profiles'] = {'kobo': {'kcc_profile': 'KPW5', 'preserve_originals': True}}
+    config['profiles'] = {'kobo': {'kcc_profile': 'KPW5', 'originals': 'keep'}}
     merged = cfg.profile_overrides(config, 'kobo')
     assert merged['kcc_profile'] == 'KPW5'
-    assert merged['preserve_originals'] is False
+    # originals is a global (non-kcc) setting, so a profile never overrides it
+    assert merged['originals'] == 'delete'
     assert cfg.profile_overrides(config, 'nope') is config
+
+
+def test_load_config_migrates_legacy_preserve_true(tmp_path):
+    """A settings.json from before the originals enum, with preserve_originals
+    True, becomes originals='archive' and drops the old key."""
+    config_file = tmp_path / 'settings.json'
+    config_file.write_text(json.dumps({'preserve_originals': True}))
+    with patch.object(cfg, 'CONFIG_FILE', str(config_file)):
+        result = cfg.load_config()
+    assert result['originals'] == 'archive'
+    assert 'preserve_originals' not in result
+
+
+def test_load_config_migrates_legacy_preserve_false(tmp_path):
+    """preserve_originals False migrates to originals='delete'."""
+    config_file = tmp_path / 'settings.json'
+    config_file.write_text(json.dumps({'preserve_originals': False}))
+    with patch.object(cfg, 'CONFIG_FILE', str(config_file)):
+        result = cfg.load_config()
+    assert result['originals'] == 'delete'
+    assert 'preserve_originals' not in result
+
+
+def test_load_config_keeps_originals_over_legacy_key(tmp_path):
+    """If both keys exist, the explicit originals value wins and the legacy
+    key is dropped rather than overwriting it."""
+    config_file = tmp_path / 'settings.json'
+    config_file.write_text(json.dumps({'originals': 'keep', 'preserve_originals': False}))
+    with patch.object(cfg, 'CONFIG_FILE', str(config_file)):
+        result = cfg.load_config()
+    assert result['originals'] == 'keep'
+    assert 'preserve_originals' not in result
 
 
 def test_profile_overrides_inherits_unsaved_keys():
