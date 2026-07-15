@@ -34,6 +34,7 @@ DEFAULT_CONFIG: ConfigDict = {
     'kcc_format':            'EPUB',
     'kcc_nokepub':           False,
     'kcc_metadatatitle':     True,
+    'kcc_comicinfo':         False,
     'kcc_author':            '',
     'kcc_batchsplit':        '0',
     'kcc_customwidth':       '',

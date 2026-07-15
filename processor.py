@@ -593,7 +593,11 @@ def _build_kcc_cmd(config: ConfigDict, filepath: str, temp_out: str) -> list[str
     if config['kcc_nokepub']:           cmd.append('--nokepub')
 
     # = form, so filenames/authors starting with a dash don't read as options
-    if config['kcc_metadatatitle']:
+    if config.get('kcc_comicinfo'):
+        # Pull the title and series from an embedded ComicInfo.xml, falling back
+        # to the filename when the archive has none.
+        cmd += ['--metadatatitle', '1']
+    elif config['kcc_metadatatitle']:
         title = os.path.splitext(os.path.basename(filepath))[0]
         cmd.append('--title=' + title)
 

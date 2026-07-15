@@ -285,7 +285,7 @@ def create_app(start_threads: bool = True) -> Flask:
                         'kcc_forcecolor', 'kcc_colorautocontrast', 'kcc_colorcurve',
                         'kcc_eraserainbow', 'kcc_mozjpeg',
                         'kcc_stretch', 'kcc_upscale', 'kcc_nosplitrotate', 'kcc_rotate',
-                        'kcc_metadatatitle', 'kcc_nokepub',
+                        'kcc_metadatatitle', 'kcc_comicinfo', 'kcc_nokepub',
                         'notify_on_success', 'notify_on_failure',
                         'bundle_chapter_folders'):
                 config[key] = key in request.form

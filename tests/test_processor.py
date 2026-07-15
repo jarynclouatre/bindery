@@ -139,6 +139,15 @@ def test_build_kcc_cmd_legacy_mobi_falls_back_to_epub(tmp_path):
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
     assert cmd[cmd.index('--format') + 1] == 'EPUB'
 
+
+def test_build_kcc_cmd_comicinfo_reads_metadata_not_filename(tmp_path):
+    """ComicInfo mode hands KCC --metadatatitle instead of forcing the filename."""
+    config = dict(DEFAULT_CONFIG)
+    config['kcc_comicinfo'] = True
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'Chapter 1 (2).cbz'), '/tmp/out')
+    assert cmd[cmd.index('--metadatatitle') + 1] == '1'
+    assert not any(a.startswith('--title=') for a in cmd)
+
 def test_process_file_conversion_error(tmp_path):
     comics_in = tmp_path / 'comics_in'
     comics_in.mkdir()

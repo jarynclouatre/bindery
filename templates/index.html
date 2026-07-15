@@ -717,6 +717,13 @@
                         </span>
                     </label>
                     <label class="check">
+                        <input type="checkbox" name="kcc_comicinfo" {% if config.kcc_comicinfo %}checked{% endif %}>
+                        <span>
+                            <div class="check-label">Use ComicInfo.xml Metadata</div>
+                            <div class="check-hint">Read title and series from an embedded ComicInfo.xml when present, so comics land organized on the device. Falls back to the filename, and takes precedence over Use Filename as Title.</div>
+                        </span>
+                    </label>
+                    <label class="check">
                         <input type="checkbox" name="kcc_nokepub" {% if config.kcc_nokepub %}checked{% endif %}>
                         <span>
                             <div class="check-label">No KEPUB Extension</div>
