@@ -41,12 +41,12 @@ bindery/
 ├── books_out/       ← converted .kepub files appear here
 ├── comics_in/       ← drop .cbz / .cbr / .zip / .rar / .pdf here
 │   ├── Some Series/ ← a folder of images becomes ONE bundled volume (subfolders = chapters)
-│   └── .archive/    ← originals preserved here when Preserve Originals is enabled
+│   └── .archive/    ← originals moved here when Originals is set to "Move to .archive"
 ├── comics_out/      ← converted files appear here
 ├── comics_raw/      ← drop a flat folder of images here; Bindery zips it to CBZ and processes it automatically
 │   ├── processed/   ← original image folders moved here on success
 │   └── unprocessed/ ← folders with subfolders or no images moved here
-└── config/          ← settings.json and jobs.json persisted here
+└── config/          ← settings.json, jobs.json, converted.json persisted here
 ```
 
 All folders are created automatically on first run. Books keep their subfolder structure — `books_in/Tolkien/hobbit.epub` converts to `books_out/Tolkien/hobbit.kepub`. For comics it depends on what a folder contains: a folder of **images** is treated as one volume (subfolders become chapters, output named after the folder), while archives — loose or inside folders — convert individually with subfolder structure preserved, unless **Bundle Chapter Folders** is enabled, which turns a folder of chapter archives into one volume too.
@@ -123,7 +123,7 @@ A few rules that keep it predictable:
 
 - Drops in the root of `Comics_in` always use the main settings — creating profiles changes nothing for anyone who ignores them.
 - A profile starts as a copy of the main settings; switch to its pill, adjust, and save. Settings a profile has never saved follow the main settings automatically.
-- Watcher mode, notifications, Preserve Originals, and the other Bindery settings are shared — profiles override KCC conversion settings only. Books have no KCC settings, so `Books_in` is unaffected.
+- Watcher mode, notifications, the Originals setting, and the other Bindery settings are shared — profiles override KCC conversion settings only. Books have no KCC settings, so `Books_in` is unaffected.
 - Deleting a profile never touches its folders or files; future drops there simply convert with the main settings.
 - Folder jobs and Bundle Chapter Folders work inside profile folders exactly as they do in the root.
 
@@ -150,7 +150,7 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 | Watcher Mode | `poll` | `poll` scans every 10 s and works everywhere including NFS/SMB. `inotify` detects files instantly on local filesystems, with a 60 s backstop scan covering network mounts and mid-transfer folders. Requires a container restart to take effect. |
 | File Stability Timeout | `60` s | How long Bindery waits for a file to finish transferring before skipping it. Dropped folders also wait at least this long after their last change before converting. Increase for slow network drives. Range: 10–300 s. |
 | Notifications (Apprise) | *(blank)* | One Apprise service URL per line. Leave blank to disable notifications. See [Apprise docs](https://github.com/caronc/apprise/wiki) for URL formats. |
-| Preserve Originals | disabled | When enabled, source comics are moved to `Comics_in/.archive` after a successful conversion instead of being deleted. Subdirectory structure is mirrored. Has no effect on book conversions. |
+| Originals | `delete` | What happens to a source comic after it converts: **Delete** it (the default), **Move** it to `Comics_in/.archive` (subdirectory structure mirrored), or **Keep in place** — leave it exactly where it is so it can sit beside the converted book when `Comics_in` and `Comics_out` point at one folder. In Keep-in-place mode Bindery records what it has already converted, so a kept source is never re-converted on the next scan and re-converts only when you replace it with a changed copy. No effect on book conversions. |
 | Bundle Chapter Folders | disabled | When enabled, a folder of chapter archives (`.cbz`/`.cbr`/`.zip`/`.rar`) dropped into `Comics_in` converts as **one volume** with a chapter per archive, in natural order (`ch2` before `ch10`). When disabled (the default), such folders convert file-by-file as before. Folders containing PDFs or loose images alongside archives always convert file-by-file. |
 
 ---
@@ -161,7 +161,7 @@ When **Device Profile** is set to **Generic / Custom**, width and height fields 
 - Each file gets a per-file lock so the same file is never processed twice concurrently.
 - Subfolder structure is preserved for individually converted files — `Comics_in/Marvel/issue01.cbz` converts to `Comics_out/Marvel/issue01.kepub`, and books work the same way. Device profile folders mirror too: `Comics_in/kobo/x.cbz` comes out in `Comics_out/kobo/`.
 - A folder of images dropped into `Comics_in` is one bundled job: a single volume named after the folder, with subfolders as chapters. With **Bundle Chapter Folders** enabled, a folder of chapter archives works the same way — one volume, a chapter per archive. Processing starts once nothing inside has changed for the File Stability Timeout (minimum 30 s).
-- On success: converted file is moved to the output folder. The source is deleted, or moved to `Comics_in/.archive` if **Preserve Originals** is enabled.
+- On success: converted file is moved to the output folder. The source is then deleted, moved to `Comics_in/.archive`, or left exactly where it is, according to the **Originals** setting.
 - On failure: the source is renamed to `<filename>.failed` and will not be retried automatically. Use the Retry button in the WebUI to re-queue it.
 - Raw image folders in `Comics_raw` are held until stable (no file changes for 30 s) before processing begins.
 - Live logs are shown in the WebUI and streamed to `docker logs`.

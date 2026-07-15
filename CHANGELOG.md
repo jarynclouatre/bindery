@@ -1,3 +1,7 @@
+## v4.1.0 — Keep Originals In Place
+
+- Added: the **Originals** setting now offers a third choice, **Keep in place** — the source comic is left exactly where it is after conversion, neither deleted nor moved to `.archive`. It's for readers who point `Comics_in` and `Comics_out` at the same folder (with a library manager like Calibre or Kavita) and want the original file and the converted book to sit side by side. Bindery remembers what it has already converted, so a kept source is never re-converted on the next scan, and re-converts on its own only when you drop a changed copy over it. The old Preserve Originals checkbox becomes the "Move to `Comics_in/.archive`" option — existing setups keep their current behaviour, and anyone who never picks Keep in place sees no change
+
 ## v4.0.0 — Device Profiles, Browser Upload & Merged Volumes
 
 - Added: **Device Profiles** — create named profiles (say, `kobo` and `kindle`) in the WebUI, each with its own KCC settings. Every profile gets a drop folder (`Comics_in/kobo`) and a matching output folder (`Comics_out/kobo`), created for you. Drops in the root of `Comics_in` behave exactly as before, and nothing changes until you create your first profile. Deleting a profile keeps its folders and files; future drops there just use the main settings
