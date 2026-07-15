@@ -1,6 +1,6 @@
 ## v4.2.0 — Light Mode, Dashboards & ComicInfo
 
-- Added: **Light theme** — the WebUI follows your system's light or dark setting, with a toggle in the header that remembers your choice (no flash on load). Dark stays the default, and the activity log keeps its terminal look in both themes
+- Added: **Light theme** — the WebUI follows your system's light or dark setting, with a toggle in the header that remembers your choice (no flash on load). The activity log keeps its terminal look in both themes
 - Added: **`/api/stats` endpoint** for home-lab dashboards — lifetime conversions and space saved, plus the live queue, ready to drop into a [Homepage](https://gethomepage.dev/) widget or an Uptime Kuma monitor; setup is in the README
 - Added: **Use ComicInfo.xml Metadata** toggle in the KCC settings — when a comic archive carries a `ComicInfo.xml`, its series, number, and title become the converted book's metadata, so a `Chapter 1 (2).cbz` still lands on the reader as *Berserk #001: The Black Swordsman*. Off by default; falls back to the filename when there's no metadata
 - Note: the image is multi-arch and always has been — it runs on x86 and ARM64, so a Raspberry Pi or ARM NAS works too (now called out in the README)
