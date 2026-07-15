@@ -163,14 +163,17 @@ def _ledger_signature(path: str) -> str:
 
 def _load_converted_ledger() -> None:
     """Load the keep-in-place ledger from disk on startup (see _load_job_registry
-    for the .update() rationale)."""
+    for the .update() rationale). Entries are {'sig': ..., 'outputs': [...]};
+    plain-string entries from 4.1.x are accepted and upgraded on the next mark."""
     try:
         with open(CONVERTED_FILE) as f:
             data = json.load(f)
         if isinstance(data, dict):
             with converted_lock:
                 CONVERTED_LEDGER.update(
-                    (k, v) for k, v in data.items() if isinstance(v, str))
+                    (k, v) for k, v in data.items()
+                    if isinstance(v, str)
+                    or (isinstance(v, dict) and isinstance(v.get('sig'), str)))
     except (OSError, json.JSONDecodeError):
         pass
 
@@ -187,25 +190,64 @@ def _save_converted_ledger() -> None:
         pass
 
 
+def _entry_sig(entry) -> str:
+    """Signature stored in a ledger entry, whatever its format."""
+    return entry['sig'] if isinstance(entry, dict) else entry
+
+
 def _already_converted(path: str) -> bool:
     """True if path was converted before and has not changed since. Entries are
     never dropped for a missing path: a NAS mount blip must not wipe the ledger
-    and re-convert a whole library."""
+    and re-convert a whole library.
+
+    A changed timestamp with identical size does not count as changed — library
+    managers (metadata refreshes, cover passes) touch files without altering
+    them, and re-converting on every touch loops forever when Comics_out is the
+    same folder. The stored signature is refreshed so the entry stays current."""
     sig = _ledger_signature(path)
     if not sig:
         return False
     with converted_lock:
-        return CONVERTED_LEDGER.get(path) == sig
+        entry = CONVERTED_LEDGER.get(path)
+        if entry is None:
+            return False
+        known = _entry_sig(entry)
+        if known == sig:
+            return True
+        if known.rsplit(':', 1)[0] == sig.rsplit(':', 1)[0]:
+            if isinstance(entry, dict):
+                entry['sig'] = sig
+            else:
+                CONVERTED_LEDGER[path] = sig
+            _save_converted_ledger()
+            return True
+        return False
 
 
-def _mark_converted(path: str) -> None:
-    """Record path+signature so the scanner skips it while it sits in place."""
+def _mark_converted(path: str, outputs: list[str] | None = None) -> None:
+    """Record path+signature so the scanner skips it while it sits in place.
+    The output paths are kept so a genuine re-convert can replace its own
+    previous outputs instead of stacking _2/_3 copies beside them."""
     sig = _ledger_signature(path)
     if not sig:
         return
     with converted_lock:
-        CONVERTED_LEDGER[path] = sig
+        CONVERTED_LEDGER[path] = {'sig': sig, 'outputs': sorted(set(outputs or []))}
         _save_converted_ledger()
+
+
+def _discard_previous_outputs(path: str) -> None:
+    """Delete the outputs an earlier keep-mode conversion of path produced.
+    Only files recorded in the ledger are touched — anything the user placed
+    beside them is left alone."""
+    with converted_lock:
+        entry = CONVERTED_LEDGER.get(path)
+        outputs = list(entry.get('outputs') or []) if isinstance(entry, dict) else []
+    for out in outputs:
+        try:
+            os.remove(out)
+        except OSError:
+            pass
 
 
 def _load_stats() -> None:
@@ -515,8 +557,9 @@ def _rename_failed(path: str) -> str | None:
 _output_move_lock = threading.Lock()
 
 
-def move_output_file(produced_file: str, target_dir: str) -> None:
-    """Move a single conversion output to target_dir, applying any needed renaming."""
+def move_output_file(produced_file: str, target_dir: str) -> str:
+    """Move a single conversion output to target_dir, applying any needed
+    renaming. Returns the final destination path."""
     filename = os.path.basename(produced_file)
     if filename.endswith('.kepub.epub'):
         filename = filename[:-len('.kepub.epub')] + '.kepub'
@@ -524,7 +567,9 @@ def move_output_file(produced_file: str, target_dir: str) -> None:
     # Books convert in parallel; the lock keeps two same-named outputs from
     # both picking the same collision-free name and overwriting each other.
     with _output_move_lock:
-        shutil.move(produced_file, _collision_free(os.path.join(target_dir, filename)))
+        dest = _collision_free(os.path.join(target_dir, filename))
+        shutil.move(produced_file, dest)
+    return dest
 
 
 class ConversionError(Exception):
@@ -690,13 +735,14 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
         produced = get_output_files(temp_out)
         if produced:
             out_bytes = sum(_tree_bytes(f) for f in produced)
-            for f in produced:
-                move_output_file(f, target_dir)
+            # Books never keep or archive their source; only comics do.
+            mode = config.get('originals', 'delete') if c_type == 'comic' else 'delete'
+            if mode == 'keep':
+                _discard_previous_outputs(filepath)
+            dests = [move_output_file(f, target_dir) for f in produced]
             if os.path.exists(filepath):
-                # Books never keep or archive their source; only comics do.
-                mode = config.get('originals', 'delete') if c_type == 'comic' else 'delete'
                 if mode == 'keep':
-                    _mark_converted(filepath)
+                    _mark_converted(filepath, dests)
                 elif mode == 'archive':
                     _dest = os.path.join(COMICS_ARCHIVE, os.path.relpath(filepath, COMICS_IN))
                     os.makedirs(os.path.dirname(_dest), exist_ok=True)
@@ -789,12 +835,13 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
         produced = get_output_files(temp_out)
         if produced:
             out_bytes = sum(_tree_bytes(f) for f in produced)
-            for f in produced:
-                move_output_file(f, out_dir)
+            mode = config.get('originals', 'delete')
+            if mode == 'keep':
+                _discard_previous_outputs(folderpath)
+            dests = [move_output_file(f, out_dir) for f in produced]
             if os.path.exists(folderpath):
-                mode = config.get('originals', 'delete')
                 if mode == 'keep':
-                    _mark_converted(folderpath)
+                    _mark_converted(folderpath, dests)
                 elif mode == 'archive':
                     _dest = os.path.join(COMICS_ARCHIVE, os.path.relpath(folderpath, COMICS_IN))
                     os.makedirs(os.path.dirname(_dest), exist_ok=True)

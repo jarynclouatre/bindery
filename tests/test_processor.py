@@ -1,3 +1,4 @@
+import json
 import os
 import pytest
 from unittest.mock import patch, MagicMock
@@ -376,6 +377,43 @@ def test_process_file_originals_keep(tmp_path):
     assert src.exists(), 'source must stay in place'
     assert processor._already_converted(str(src)) is True
 
+def test_process_file_keep_reconvert_replaces_previous_output(tmp_path):
+    """When a kept source genuinely changes, the re-convert must replace its own
+    earlier output instead of piling up Book_2/Book_3 copies beside it."""
+    library = tmp_path / 'library'
+    library.mkdir()
+    src = library / 'Book.cbz'
+    src.write_bytes(b'first version')
+
+    mock_config = dict(DEFAULT_CONFIG)
+    mock_config['originals'] = 'keep'
+
+    def fake_output(payload: bytes):
+        out_dir = tmp_path / 'produced'
+        out_dir.mkdir(exist_ok=True)
+        out = out_dir / 'Book.epub'
+        out.write_bytes(payload)
+        return [str(out)]
+
+    with patch.object(processor, 'COMICS_IN',      str(library)), \
+         patch.object(processor, 'COMICS_OUT',     str(library)), \
+         patch.object(processor, 'CONVERTED_FILE', str(tmp_path / 'converted.json')), \
+         patch('processor.load_config',        return_value=mock_config), \
+         patch('processor.wait_for_file_ready', return_value=True), \
+         patch('processor._run_conversion',     return_value=None):
+        processor.CONVERTED_LEDGER.clear()
+        with patch('processor.get_output_files', return_value=fake_output(b'epub one')):
+            processor.process_file(str(src), 'comic')
+        assert (library / 'Book.epub').read_bytes() == b'epub one'
+
+        src.write_bytes(b'second version, different size')
+        with patch('processor.get_output_files', return_value=fake_output(b'epub two')):
+            processor.process_file(str(src), 'comic')
+
+    assert (library / 'Book.epub').read_bytes() == b'epub two'
+    assert not (library / 'Book_2.epub').exists(), 'old output must be replaced, not stacked'
+    assert src.exists()
+
 def test_scan_directories_skips_dot_folders(tmp_path):
     """Any dot-folder (e.g. .stfolder, .stversions) must be skipped, not just .archive."""
     comics_in  = tmp_path / 'comics_in'
@@ -744,6 +782,32 @@ def test_converted_ledger_detects_changed_source(tmp_path):
         assert processor._already_converted(str(src)) is True
         src.write_bytes(b'a bigger, different payload')
         assert processor._already_converted(str(src)) is False
+
+def test_converted_ledger_ignores_timestamp_only_touch(tmp_path):
+    """A library manager touching a converted file (same bytes, new mtime) must
+    not re-trigger conversion — that loops forever when Comics_out is the same
+    folder. The stored signature refreshes so the entry stays current."""
+    src = tmp_path / 'Book.cbz'
+    src.write_bytes(b'hello')
+    with patch.object(processor, 'CONVERTED_FILE', str(tmp_path / 'converted.json')):
+        processor.CONVERTED_LEDGER.clear()
+        processor._mark_converted(str(src))
+        os.utime(str(src), (1000000000, 1000000000))
+        assert processor._already_converted(str(src)) is True
+        assert processor._already_converted(str(src)) is True, 'refreshed sig must hold'
+
+def test_converted_ledger_accepts_legacy_string_entries(tmp_path):
+    """4.1.x stored a bare signature string; those entries must keep gating."""
+    src = tmp_path / 'Book.cbz'
+    src.write_bytes(b'hello')
+    ledger_file = tmp_path / 'converted.json'
+    ledger_file.write_text(json.dumps({str(src): processor._ledger_signature(str(src))}))
+    with patch.object(processor, 'CONVERTED_FILE', str(ledger_file)):
+        processor.CONVERTED_LEDGER.clear()
+        processor._load_converted_ledger()
+        assert processor._already_converted(str(src)) is True
+        os.utime(str(src), (1000000000, 1000000000))
+        assert processor._already_converted(str(src)) is True
 
 def test_converted_ledger_persists_across_reload(tmp_path):
     src = tmp_path / 'Book.cbz'
