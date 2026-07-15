@@ -2,6 +2,8 @@ import json
 import time
 from unittest.mock import patch
 
+import pytest
+
 import config as cfg
 
 _BASE_FORM = {
@@ -56,20 +58,15 @@ def test_validate_post_clamps_invalid_choices(client, tmp_path):
     assert saved['kcc_borders']    == 'black'
 
 
-def test_validate_post_rejects_removed_formats(client, tmp_path):
-    # MOBI/KFX were dropped in v3.4.0 — they can't convert in this image.
-    saved, _ = _post(client, tmp_path, kcc_format='MOBI')
-    assert saved['kcc_format'] == 'EPUB'
-
-
-def test_validate_post_file_wait_timeout_clamped(client, tmp_path):
-    saved, _ = _post(client, tmp_path, file_wait_timeout='9999')
-    assert saved['file_wait_timeout'] == 300
-
-
-def test_validate_post_watcher_mode_invalid(client, tmp_path):
-    saved, _ = _post(client, tmp_path, watcher_mode='hacked')
-    assert saved['watcher_mode'] == 'poll'
+@pytest.mark.parametrize('field, bad, expected', [
+    ('kcc_format',        'MOBI',            'EPUB'),   # MOBI/KFX dropped in v3.4.0
+    ('file_wait_timeout', '9999',            300),      # numeric clamp to the max
+    ('watcher_mode',      'hacked',          'poll'),
+    ('originals',         'wipe-everything', 'delete'),
+])
+def test_validate_post_clamps_bad_field(client, tmp_path, field, bad, expected):
+    saved, _ = _post(client, tmp_path, **{field: bad})
+    assert saved[field] == expected
 
 
 def test_index_get_shows_originals_control(client):
@@ -82,11 +79,6 @@ def test_index_get_shows_originals_control(client):
 def test_post_originals_keep_saves(client, tmp_path):
     saved, _ = _post(client, tmp_path, originals='keep')
     assert saved['originals'] == 'keep'
-
-
-def test_validate_post_originals_invalid(client, tmp_path):
-    saved, _ = _post(client, tmp_path, originals='wipe-everything')
-    assert saved['originals'] == 'delete'
 
 
 def test_post_defaults_originals_to_delete(client, tmp_path):

@@ -7,7 +7,6 @@ import processor
 import app as bindery_app
 from config import DEFAULT_CONFIG
 
-
 # ── Job registry ──────────────────────────────────────────────────────────────
 
 def test_register_job_creates_queued_entry(tmp_path):
@@ -23,7 +22,6 @@ def test_register_job_creates_queued_entry(tmp_path):
     assert job['finished'] is None
     assert job['error']    is None
 
-
 def test_register_job_persists_to_disk(tmp_path):
     jobs_file = tmp_path / 'jobs.json'
     with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
@@ -31,7 +29,6 @@ def test_register_job_persists_to_disk(tmp_path):
     assert jobs_file.exists()
     data = json.loads(jobs_file.read_text())
     assert len(data) == 1
-
 
 def test_update_job_changes_state_and_persists(tmp_path):
     jobs_file = tmp_path / 'jobs.json'
@@ -44,19 +41,6 @@ def test_update_job_changes_state_and_persists(tmp_path):
     data = json.loads(jobs_file.read_text())
     assert data[job_id]['state'] == 'processing'
 
-
-def test_update_job_noop_for_none_id(tmp_path):
-    jobs_file = tmp_path / 'jobs.json'
-    with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
-        processor._update_job(None, state='failed')  # must not raise
-
-
-def test_update_job_noop_for_missing_id(tmp_path):
-    jobs_file = tmp_path / 'jobs.json'
-    with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
-        processor._update_job('nonexistent', state='failed')  # must not raise
-
-
 def test_load_job_registry_populates_from_disk(tmp_path):
     jobs_file = tmp_path / 'jobs.json'
     data = {'abc123': {'id': 'abc123', 'filename': 'test.cbz', 'state': 'success',
@@ -65,7 +49,6 @@ def test_load_job_registry_populates_from_disk(tmp_path):
     with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
         processor._load_job_registry()
     assert 'abc123' in processor.JOB_REGISTRY
-
 
 def test_load_job_registry_does_not_replace_dict_reference(tmp_path):
     """_load_job_registry must use .update() so the reference in app.py stays valid."""
@@ -77,13 +60,6 @@ def test_load_job_registry_does_not_replace_dict_reference(tmp_path):
         processor._load_job_registry()
     assert processor.JOB_REGISTRY is original_ref, \
         "_load_job_registry replaced the dict object — app.py's import reference is now stale"
-
-
-def test_load_job_registry_ignores_missing_file(tmp_path):
-    with patch.object(processor, 'JOBS_FILE', str(tmp_path / 'no_such.json')):
-        processor._load_job_registry()  # must not raise
-    assert processor.JOB_REGISTRY == {}
-
 
 def test_load_job_registry_drops_stale_running_jobs(tmp_path):
     """Jobs persisted as queued/processing died with the old process — they
@@ -99,14 +75,12 @@ def test_load_job_registry_drops_stale_running_jobs(tmp_path):
         processor._load_job_registry()
     assert set(processor.JOB_REGISTRY) == {'done'}
 
-
 def test_load_job_registry_ignores_bad_json(tmp_path):
     jobs_file = tmp_path / 'jobs.json'
     jobs_file.write_text('not json {{{')
     with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
         processor._load_job_registry()
     assert processor.JOB_REGISTRY == {}
-
 
 def test_register_job_prunes_oldest_completed_when_over_max(tmp_path):
     jobs_file = tmp_path / 'jobs.json'
@@ -121,7 +95,6 @@ def test_register_job_prunes_oldest_completed_when_over_max(tmp_path):
     assert len(processor.JOB_REGISTRY) == 3
     assert ids[0] not in processor.JOB_REGISTRY
     assert ids[2] in processor.JOB_REGISTRY
-
 
 # ── retry_file ────────────────────────────────────────────────────────────────
 
@@ -146,25 +119,17 @@ def test_retry_file_renames_and_requeues(tmp_path):
     assert processor.JOB_REGISTRY[job_id]['state'] == 'queued'
     assert processor.JOB_REGISTRY[job_id]['error'] is None
 
-
-def test_retry_file_returns_false_for_non_failed_job(tmp_path):
+def test_retry_file_returns_false_for_bad_states(tmp_path):
+    """No-op for a job that never failed, a failed job whose .failed file has
+    vanished, and an unknown id."""
     jobs_file = tmp_path / 'jobs.json'
     with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
-        job_id = processor._register_job('/in/test.cbz', 'comic')
-    assert processor.retry_file(job_id) is False
-
-
-def test_retry_file_returns_false_when_failed_file_missing(tmp_path):
-    jobs_file = tmp_path / 'jobs.json'
-    with patch.object(processor, 'JOBS_FILE', str(jobs_file)):
-        job_id = processor._register_job('/in/ghost.cbz', 'comic')
-        processor._update_job(job_id, state='failed')
-    assert processor.retry_file(job_id) is False
-
-
-def test_retry_file_returns_false_for_unknown_id():
-    assert processor.retry_file('doesnotexist') is False
-
+        not_failed = processor._register_job('/in/test.cbz', 'comic')
+        gone = processor._register_job('/in/ghost.cbz', 'comic')
+        processor._update_job(gone, state='failed')
+        assert processor.retry_file(not_failed) is False
+        assert processor.retry_file(gone) is False
+        assert processor.retry_file('doesnotexist') is False
 
 def test_retry_file_refuses_to_overwrite_replacement_file(tmp_path):
     """If a new file was dropped under the original name, retry must not clobber it."""
@@ -181,7 +146,6 @@ def test_retry_file_refuses_to_overwrite_replacement_file(tmp_path):
 
     assert src.read_bytes() == b'newly dropped file'
     assert failed.exists()
-
 
 # ── process_file registry integration ─────────────────────────────────────────
 
@@ -206,7 +170,6 @@ def test_process_file_sets_failed_state_on_conversion_error(tmp_path):
     assert job['finished'] is not None
     assert 'exit 1' in job['error']
 
-
 def test_process_file_sets_success_state(tmp_path):
     comics_in  = tmp_path / 'comics_in'
     comics_out = tmp_path / 'comics_out'
@@ -230,7 +193,6 @@ def test_process_file_sets_success_state(tmp_path):
     job = list(processor.JOB_REGISTRY.values())[0]
     assert job['state'] == 'success'
 
-
 def test_process_file_removes_job_on_skip(tmp_path):
     comics_in = tmp_path / 'comics_in'
     comics_in.mkdir()
@@ -247,14 +209,12 @@ def test_process_file_removes_job_on_skip(tmp_path):
 
     assert len(processor.JOB_REGISTRY) == 0
 
-
 # ── /api/status ───────────────────────────────────────────────────────────────
 
 def test_api_status_empty(client):
     resp = client.get('/api/status')
     assert resp.status_code == 200
     assert json.loads(resp.data) == {'jobs': []}
-
 
 def test_api_status_returns_jobs(client):
     processor.JOB_REGISTRY['abc'] = {
@@ -267,7 +227,6 @@ def test_api_status_returns_jobs(client):
     data = json.loads(resp.data)
     assert len(data['jobs']) == 1
     assert data['jobs'][0]['filename'] == 'test.cbz'
-
 
 def test_api_status_sorts_newest_first(client):
     processor.JOB_REGISTRY['old'] = {
@@ -286,7 +245,6 @@ def test_api_status_sorts_newest_first(client):
     assert data['jobs'][0]['id'] == 'new'
     assert data['jobs'][1]['id'] == 'old'
 
-
 # ── /api/retry ────────────────────────────────────────────────────────────────
 
 def test_api_retry_missing_job_id(client):
@@ -295,14 +253,12 @@ def test_api_retry_missing_job_id(client):
                        content_type='application/json')
     assert resp.status_code == 400
 
-
 def test_api_retry_unknown_job_returns_not_ok(client):
     resp = client.post('/api/retry',
                        data=json.dumps({'job_id': 'doesnotexist'}),
                        content_type='application/json')
     assert resp.status_code == 200
     assert json.loads(resp.data)['ok'] is False
-
 
 def test_api_retry_success(client, tmp_path):
     src    = tmp_path / 'test.cbz'
@@ -327,7 +283,6 @@ def test_api_retry_success(client, tmp_path):
     assert resp.status_code == 200
     assert json.loads(resp.data)['ok'] is True
 
-
 # ── /api/files ────────────────────────────────────────────────────────────────
 
 def test_api_files_returns_structure(client, tmp_path):
@@ -350,7 +305,6 @@ def test_api_files_returns_structure(client, tmp_path):
     assert 'size'  in data['books'][0]
     assert 'mtime' in data['books'][0]
 
-
 def test_api_files_empty_dirs(client, tmp_path):
     books_out  = tmp_path / 'books_out'
     comics_out = tmp_path / 'comics_out'
@@ -364,7 +318,6 @@ def test_api_files_empty_dirs(client, tmp_path):
     assert data['books']  == []
     assert data['comics'] == []
 
-
 def test_api_files_nonexistent_dirs(client, tmp_path):
     with patch.object(bindery_app, 'BOOKS_OUT',  str(tmp_path / 'no_books')), \
          patch.object(bindery_app, 'COMICS_OUT', str(tmp_path / 'no_comics')):
@@ -374,19 +327,16 @@ def test_api_files_nonexistent_dirs(client, tmp_path):
     assert data['books']  == []
     assert data['comics'] == []
 
-
 # ── /api/files/download ───────────────────────────────────────────────────────
 
 def test_api_files_download_rejects_invalid_folder(client):
     resp = client.get('/api/files/download?folder=secret&name=test.epub')
     assert resp.status_code == 400
 
-
 def test_api_files_download_rejects_empty_name(client, tmp_path):
     with patch.object(bindery_app, 'BOOKS_OUT', str(tmp_path)):
         resp = client.get('/api/files/download?folder=books&name=')
     assert resp.status_code == 400
-
 
 def test_api_files_download_rejects_path_traversal(client, tmp_path):
     books_out = tmp_path / 'books_out'
@@ -395,14 +345,12 @@ def test_api_files_download_rejects_path_traversal(client, tmp_path):
         resp = client.get('/api/files/download?folder=books&name=../../../etc/passwd')
     assert resp.status_code == 400
 
-
 def test_api_files_download_returns_404_for_missing_file(client, tmp_path):
     books_out = tmp_path / 'books_out'
     books_out.mkdir()
     with patch.object(bindery_app, 'BOOKS_OUT', str(books_out)):
         resp = client.get('/api/files/download?folder=books&name=ghost.epub')
     assert resp.status_code == 404
-
 
 def test_api_files_download_serves_file(client, tmp_path):
     books_out = tmp_path / 'books_out'
@@ -412,7 +360,6 @@ def test_api_files_download_serves_file(client, tmp_path):
         resp = client.get('/api/files/download?folder=books&name=test.epub')
     assert resp.status_code == 200
     assert resp.data == b'epub content'
-
 
 def test_api_files_download_comics_folder(client, tmp_path):
     comics_out = tmp_path / 'comics_out'

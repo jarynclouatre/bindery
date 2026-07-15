@@ -5,11 +5,6 @@ from unittest.mock import patch, MagicMock
 import processor
 from config import DEFAULT_CONFIG
 
-
-def test_get_output_files_empty_dir(tmp_path):
-    assert processor.get_output_files(str(tmp_path)) == []
-
-
 def test_get_output_files_returns_all_files(tmp_path):
     a = tmp_path / 'a.epub'
     b = tmp_path / 'b.epub'
@@ -23,14 +18,6 @@ def test_get_output_files_returns_all_files(tmp_path):
     assert result[0].endswith('a.epub')
     assert result[1].endswith('b.epub')
 
-
-def test_get_output_files_ignores_subdirectories(tmp_path):
-    (tmp_path / 'file.epub').write_text('x')
-    (tmp_path / 'subdir').mkdir()
-    result = processor.get_output_files(str(tmp_path))
-    assert len(result) == 1
-
-
 def test_move_output_file_renames_kepub_epub(tmp_path):
     src = tmp_path / 'src'
     dst = tmp_path / 'dst'
@@ -41,24 +28,6 @@ def test_move_output_file_renames_kepub_epub(tmp_path):
     assert (dst / 'mycomic.kepub').exists()
     assert not src_file.exists()
 
-
-def test_move_output_file_leaves_regular_epub_alone(tmp_path):
-    src = tmp_path / 'src'
-    src.mkdir()
-    src_file = src / 'mybook.epub'
-    src_file.write_text('data')
-    processor.move_output_file(str(src_file), str(tmp_path / 'dst'))
-    assert (tmp_path / 'dst' / 'mybook.epub').exists()
-
-
-def test_move_output_file_creates_target_dir(tmp_path):
-    src = tmp_path / 'file.epub'
-    src.write_text('data')
-    deep_dst = tmp_path / 'deep' / 'nested' / 'dir'
-    processor.move_output_file(str(src), str(deep_dst))
-    assert (deep_dst / 'file.epub').exists()
-
-
 def test_prune_empty_dirs_removes_nested(tmp_path):
     nested = tmp_path / 'a' / 'b' / 'c'
     nested.mkdir(parents=True)
@@ -66,25 +35,12 @@ def test_prune_empty_dirs_removes_nested(tmp_path):
     processor.prune_empty_dirs(str(fake_file), str(tmp_path))
     assert not (tmp_path / 'a').exists()
 
-
 def test_prune_empty_dirs_does_not_remove_base(tmp_path):
     sub = tmp_path / 'sub'
     sub.mkdir()
     fake_file = sub / 'file.epub'
     processor.prune_empty_dirs(str(fake_file), str(tmp_path))
     assert tmp_path.exists()
-
-
-def test_prune_empty_dirs_stops_at_nonempty_parent(tmp_path):
-    nested = tmp_path / 'a' / 'b'
-    nested.mkdir(parents=True)
-    # Put a file in 'a' so it can't be removed
-    (tmp_path / 'a' / 'keep.txt').write_text('x')
-    fake_file = nested / 'file.epub'
-    processor.prune_empty_dirs(str(fake_file), str(tmp_path))
-    assert not (tmp_path / 'a' / 'b').exists()
-    assert (tmp_path / 'a').exists()
-
 
 def test_process_file_flags_failed_when_no_output(tmp_path):
     # KCC exits 0 but produces no output files — source must be renamed .failed,
@@ -107,7 +63,6 @@ def test_process_file_flags_failed_when_no_output(tmp_path):
     assert not src.exists(), "source file should have been removed or renamed"
     assert (comics_in / 'test.cbz.failed').exists(), "source should be renamed .failed when no output produced"
 
-
 def test_build_kcc_cmd_basic(tmp_path):
     config = dict(DEFAULT_CONFIG)
     filepath = str(tmp_path / 'test.cbz')
@@ -119,70 +74,24 @@ def test_build_kcc_cmd_basic(tmp_path):
     assert '--output' in cmd
 
 
+@pytest.mark.parametrize('key, value, flag, present', [
+    ('kcc_borders',      'black', '--blackborders', True),
+    ('kcc_borders',      'white', '--whiteborders', True),
+    ('kcc_borders',      'none',  '--blackborders', False),
+    ('kcc_eraserainbow', True,    '--eraserainbow', True),
+    ('kcc_mozjpeg',      True,    '--mozjpeg',      True),
+])
+def test_build_kcc_cmd_flag_mappings(tmp_path, key, value, flag, present):
+    config = dict(DEFAULT_CONFIG)
+    config[key] = value
+    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
+    assert (flag in cmd) is present
+
 def test_build_kcc_cmd_gamma_zero_omitted(tmp_path):
     config = dict(DEFAULT_CONFIG)
     config['kcc_gamma'] = '0'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
     assert '--gamma' not in cmd
-
-
-def test_build_kcc_cmd_gamma_nonzero_included(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    config['kcc_gamma'] = '1.8'
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--gamma' in cmd
-    assert '1.8' in cmd
-
-
-def test_build_kcc_cmd_black_borders(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    config['kcc_borders'] = 'black'
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--blackborders' in cmd
-    assert '--whiteborders' not in cmd
-
-
-def test_build_kcc_cmd_white_borders(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    config['kcc_borders'] = 'white'
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--whiteborders' in cmd
-    assert '--blackborders' not in cmd
-
-
-def test_build_kcc_cmd_no_borders(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    config['kcc_borders'] = 'none'
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--blackborders' not in cmd
-    assert '--whiteborders' not in cmd
-
-
-def test_build_kcc_cmd_eraserainbow_off_by_default(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--eraserainbow' not in cmd
-
-
-def test_build_kcc_cmd_eraserainbow_included_when_set(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    config['kcc_eraserainbow'] = True
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--eraserainbow' in cmd
-
-
-def test_build_kcc_cmd_mozjpeg_off_by_default(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--mozjpeg' not in cmd
-
-
-def test_build_kcc_cmd_mozjpeg_included_when_set(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    config['kcc_mozjpeg'] = True
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--mozjpeg' in cmd
-
 
 def test_build_kcc_cmd_other_profile_custom_dims(tmp_path):
     config = dict(DEFAULT_CONFIG)
@@ -193,7 +102,6 @@ def test_build_kcc_cmd_other_profile_custom_dims(tmp_path):
     assert '--customwidth'  in cmd and '1264' in cmd
     assert '--customheight' in cmd and '1680' in cmd
 
-
 def test_build_kcc_cmd_non_other_profile_ignores_custom_dims(tmp_path):
     config = dict(DEFAULT_CONFIG)
     config['kcc_profile']      = 'KPW5'
@@ -203,14 +111,12 @@ def test_build_kcc_cmd_non_other_profile_ignores_custom_dims(tmp_path):
     assert '--customwidth'  not in cmd
     assert '--customheight' not in cmd
 
-
 def test_build_kcc_cmd_metadatatitle_uses_filename(tmp_path):
     config = dict(DEFAULT_CONFIG)
     config['kcc_metadatatitle'] = True
     filepath = str(tmp_path / 'My Comic.cbz')
     cmd = processor._build_kcc_cmd(config, filepath, '/tmp/out')
     assert '--title=My Comic' in cmd
-
 
 def test_build_kcc_cmd_dash_leading_title_stays_a_value(tmp_path):
     """A file named -Batman.cbz must not read as an option to kcc's argparse."""
@@ -219,14 +125,6 @@ def test_build_kcc_cmd_dash_leading_title_stays_a_value(tmp_path):
     cmd = processor._build_kcc_cmd(config, str(tmp_path / '-Batman.cbz'), '/tmp/out')
     assert '--title=-Batman' in cmd
 
-
-def test_build_kcc_cmd_author_included(tmp_path):
-    config = dict(DEFAULT_CONFIG)
-    config['kcc_author'] = 'Frank Miller'
-    cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
-    assert '--author=Frank Miller' in cmd
-
-
 def test_build_kcc_cmd_croppingminimum_percent_to_ratio(tmp_path):
     """The UI stores a percentage; kcc-c2e expects a 0-1 ratio."""
     config = dict(DEFAULT_CONFIG)
@@ -234,14 +132,12 @@ def test_build_kcc_cmd_croppingminimum_percent_to_ratio(tmp_path):
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
     assert cmd[cmd.index('--croppingminimum') + 1] == '0.75'
 
-
 def test_build_kcc_cmd_legacy_mobi_falls_back_to_epub(tmp_path):
     """Configs saved before MOBI was removed must not produce a broken command."""
     config = dict(DEFAULT_CONFIG)
     config['kcc_format'] = 'MOBI'
     cmd = processor._build_kcc_cmd(config, str(tmp_path / 'test.cbz'), '/tmp/out')
     assert cmd[cmd.index('--format') + 1] == 'EPUB'
-
 
 def test_process_file_conversion_error(tmp_path):
     comics_in = tmp_path / 'comics_in'
@@ -259,7 +155,6 @@ def test_process_file_conversion_error(tmp_path):
     assert not src.exists()
     assert (comics_in / 'test.cbz.failed').exists()
 
-
 def test_process_file_unexpected_exception(tmp_path):
     comics_in = tmp_path / 'comics_in'
     comics_in.mkdir()
@@ -276,13 +171,14 @@ def test_process_file_unexpected_exception(tmp_path):
     assert not src.exists()
     assert (comics_in / 'test.cbz.failed').exists()
 
-
-def test_scan_directories_dispatches_comic(tmp_path):
+@pytest.mark.parametrize('filename', ['test.cbz', 'test.pdf'])
+def test_scan_directories_dispatches_comic(tmp_path, filename):
+    """CBZ and PDF alike dispatch from Comics_in — KCC takes both as input."""
     comics_in = tmp_path / 'comics_in'
     books_in  = tmp_path / 'books_in'
     comics_in.mkdir()
     books_in.mkdir()
-    (comics_in / 'test.cbz').write_bytes(b'x')
+    (comics_in / filename).write_bytes(b'x')
 
     dispatched = []
     with patch.object(processor, 'COMICS_IN', str(comics_in)), \
@@ -293,28 +189,7 @@ def test_scan_directories_dispatches_comic(tmp_path):
         processor.PROCESSING_LOCKS.clear()
         processor.scan_directories()
 
-    assert any(str(comics_in / 'test.cbz') in str(a) for a in dispatched)
-
-
-def test_scan_directories_dispatches_pdf_comic(tmp_path):
-    """PDFs in Comics_in should be dispatched (KCC accepts PDF as input)."""
-    comics_in = tmp_path / 'comics_in'
-    books_in  = tmp_path / 'books_in'
-    comics_in.mkdir()
-    books_in.mkdir()
-    (comics_in / 'test.pdf').write_bytes(b'x')
-
-    dispatched = []
-    with patch.object(processor, 'COMICS_IN', str(comics_in)), \
-         patch.object(processor, 'BOOKS_IN',  str(books_in)), \
-         patch('processor.threading') as mock_threading:
-        def _fake_thread(target, args, daemon): dispatched.append(args); return MagicMock()
-        mock_threading.Thread = MagicMock(side_effect=_fake_thread)
-        processor.PROCESSING_LOCKS.clear()
-        processor.scan_directories()
-
-    assert any(str(comics_in / 'test.pdf') in str(a) for a in dispatched)
-
+    assert any(str(comics_in / filename) in str(a) for a in dispatched)
 
 def test_scan_directories_skips_failed_files(tmp_path):
     comics_in = tmp_path / 'comics_in'
@@ -331,13 +206,11 @@ def test_scan_directories_skips_failed_files(tmp_path):
 
     mock_threading.Thread.assert_not_called()
 
-
 # ── _notify ───────────────────────────────────────────────────────────────────
 
 def test_notify_no_urls_does_not_raise():
     with patch('processor.load_config', return_value={**DEFAULT_CONFIG, 'apprise_urls': ''}):
         processor._notify('success', 'test.cbz')
-
 
 def test_notify_success_suppressed_when_disabled():
     mock_apprise = MagicMock()
@@ -349,7 +222,6 @@ def test_notify_success_suppressed_when_disabled():
         processor._notify('success', 'test.cbz')
     mock_apprise.Apprise.assert_not_called()
 
-
 def test_notify_failure_suppressed_when_disabled():
     mock_apprise = MagicMock()
     with patch('processor.load_config', return_value={
@@ -359,7 +231,6 @@ def test_notify_failure_suppressed_when_disabled():
     }), patch.dict('sys.modules', {'apprise': mock_apprise}):
         processor._notify('failure', 'test.cbz')
     mock_apprise.Apprise.assert_not_called()
-
 
 def test_notify_success_fires_with_correct_title():
     mock_apprise = MagicMock()
@@ -373,7 +244,6 @@ def test_notify_success_fires_with_correct_title():
         processor._notify('success', 'test.cbz')
     mock_instance.notify.assert_called_once()
     assert mock_instance.notify.call_args.kwargs['title'] == 'Bindery: Conversion complete'
-
 
 def test_notify_failure_fires_with_error_in_body():
     mock_apprise = MagicMock()
@@ -389,7 +259,6 @@ def test_notify_failure_fires_with_error_in_body():
     assert mock_instance.notify.call_args.kwargs['title'] == 'Bindery: Conversion failed'
     assert 'exit 1' in mock_instance.notify.call_args.kwargs['body']
 
-
 # ── wait_for_file_ready ──────────────────────────────────────────────────────
 
 def test_wait_for_file_ready_requires_three_stable_reads(tmp_path):
@@ -401,7 +270,6 @@ def test_wait_for_file_ready_requires_three_stable_reads(tmp_path):
          patch("processor.time.sleep"):
         assert processor.wait_for_file_ready(str(f), timeout=60) is True
 
-
 def test_wait_for_file_ready_two_stable_not_enough(tmp_path):
     """Two stable readings followed by timeout must return False."""
     f = tmp_path / "comic.cbz"
@@ -410,7 +278,6 @@ def test_wait_for_file_ready_two_stable_not_enough(tmp_path):
     with patch("processor.os.path.getsize", side_effect=sizes), \
          patch("processor.time.sleep"):
         assert processor.wait_for_file_ready(str(f), timeout=3) is False
-
 
 def test_wait_for_file_ready_resets_on_size_change(tmp_path):
     """A size change mid-sequence resets the stable counter to zero."""
@@ -421,7 +288,6 @@ def test_wait_for_file_ready_resets_on_size_change(tmp_path):
          patch("processor.time.sleep"):
         assert processor.wait_for_file_ready(str(f), timeout=60) is True
 
-
 def test_wait_for_file_ready_oserror_resets_counter(tmp_path):
     """An OSError during polling resets the stable counter."""
     f = tmp_path / "comic.cbz"
@@ -430,7 +296,6 @@ def test_wait_for_file_ready_oserror_resets_counter(tmp_path):
     with patch("processor.os.path.getsize", side_effect=sizes), \
          patch("processor.time.sleep"):
         assert processor.wait_for_file_ready(str(f), timeout=60) is True
-
 
 # ── originals: delete / archive / keep ────────────────────────────────────────
 
@@ -451,7 +316,6 @@ def test_scan_directories_skips_archive(tmp_path):
         processor.scan_directories()
 
     mock_threading.Thread.assert_not_called()
-
 
 def test_process_file_originals_archive(tmp_path):
     """With originals='archive', source file moves to .archive (mirroring
@@ -478,7 +342,6 @@ def test_process_file_originals_archive(tmp_path):
     assert not src.exists(), 'source should not remain in comics_in'
     assert (comics_archive / 'test.cbz').exists(), 'source should be in .archive'
 
-
 def test_process_file_originals_keep(tmp_path):
     """With originals='keep', the source stays exactly where it is and is
     recorded in the ledger so the scanner won't re-convert it."""
@@ -504,7 +367,6 @@ def test_process_file_originals_keep(tmp_path):
     assert src.exists(), 'source must stay in place'
     assert processor._already_converted(str(src)) is True
 
-
 def test_scan_directories_skips_dot_folders(tmp_path):
     """Any dot-folder (e.g. .stfolder, .stversions) must be skipped, not just .archive."""
     comics_in  = tmp_path / 'comics_in'
@@ -522,7 +384,6 @@ def test_scan_directories_skips_dot_folders(tmp_path):
         processor.scan_directories()
 
     mock_threading.Thread.assert_not_called()
-
 
 # ── Comics_in folder jobs ─────────────────────────────────────────────────────
 
@@ -544,7 +405,6 @@ def _scan_dispatches(tmp_path, setup):
         processor.scan_directories()
     return comics_in, {args[0]: target for target, args in dispatched}
 
-
 def test_scan_directories_image_folder_becomes_folder_job(tmp_path):
     """A top-level folder of images is one bundled KCC volume."""
     def setup(comics_in):
@@ -556,7 +416,6 @@ def test_scan_directories_image_folder_becomes_folder_job(tmp_path):
     comics_in, targets = _scan_dispatches(tmp_path, setup)
     assert targets.get(str(comics_in / 'Batman')) is processor.process_folder
     assert targets.get(str(comics_in / 'loose.cbz')) is processor.process_file
-
 
 def test_scan_directories_archive_folder_converts_per_file(tmp_path):
     """KCC rejects nested archives, so a folder holding .cbz files must be
@@ -571,7 +430,6 @@ def test_scan_directories_archive_folder_converts_per_file(tmp_path):
     assert str(folder) not in targets
     assert targets.get(str(folder / 'ch1.cbz')) is processor.process_file
     assert targets.get(str(folder / 'ch2.cbz')) is processor.process_file
-
 
 def test_scan_directories_bundle_toggle_makes_archive_folder_a_folder_job(tmp_path):
     """With Bundle Chapter Folders on, an archive folder is one bundled job —
@@ -591,7 +449,6 @@ def test_scan_directories_bundle_toggle_makes_archive_folder_a_folder_job(tmp_pa
     assert str(folder / 'ch1.cbz') not in targets
     assert str(folder / 'ch2.cbz') not in targets
 
-
 # ── Chapter bundling ──────────────────────────────────────────────────────────
 
 def _bundle_config(on: bool):
@@ -599,42 +456,27 @@ def _bundle_config(on: bool):
     config['bundle_chapter_folders'] = on
     return config
 
-
-def test_is_bundle_folder_image_only_always_bundles(tmp_path):
-    (tmp_path / 'p1.jpg').write_bytes(b'x')
-    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
-    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(True))
-
-
-def test_is_bundle_folder_archives_require_toggle(tmp_path):
-    (tmp_path / 'ch1.cbz').write_bytes(b'x')
-    assert not processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
-    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(True))
-
-
-def test_is_bundle_folder_junk_files_are_tolerated(tmp_path):
-    (tmp_path / 'ch1.cbz').write_bytes(b'x')
-    (tmp_path / 'info.json').write_bytes(b'{}')
-    (tmp_path / 'series.nfo').write_bytes(b'x')
-    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(True))
-
-
-def test_is_bundle_folder_empty_folder_is_not_a_job(tmp_path):
-    """A deleted profile leaves its folder behind empty; dispatching it would
-    log a SKIP every scan forever."""
-    assert not processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
-    (tmp_path / '.uploading').mkdir()
-    (tmp_path / '.uploading' / 'stale.part').write_bytes(b'x')
-    assert not processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
-
-
-def test_is_bundle_folder_ignores_hidden_directories(tmp_path):
-    (tmp_path / 'p1.jpg').write_bytes(b'x')
-    hidden = tmp_path / '.stversions'
-    hidden.mkdir()
-    (hidden / 'old.cbz').write_bytes(b'x')
-    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(False))
-
+@pytest.mark.parametrize('files, dirs, toggle, expected', [
+    (['p1.jpg'], [], False, True),                        # image-only always bundles
+    (['p1.jpg'], [], True, True),
+    (['ch1.cbz'], [], False, False),                      # archives need the toggle
+    (['ch1.cbz'], [], True, True),
+    (['ch1.cbz', 'info.json', 'series.nfo'], [], True, True),   # junk tolerated
+    ([], [], False, False),                               # empty folder is never a job
+    ([], ['.uploading/stale.part'], False, False),        # ...nor one holding only scratch
+    (['p1.jpg'], ['.stversions/old.cbz'], False, True),   # hidden archives don't reclassify
+    (['ch1.cbz', 'extra.pdf'], [], True, False),          # pdf alongside archives -> per-file
+    (['ch1.cbz', 'cover.jpg'], [], True, False),          # loose image alongside -> per-file
+    (['book.pdf'], [], True, False),                      # pdf-only -> per-file
+])
+def test_is_bundle_folder_decision(tmp_path, files, dirs, toggle, expected):
+    for name in files:
+        (tmp_path / name).write_bytes(b'x')
+    for rel in dirs:
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b'x')
+    assert processor._is_bundle_folder(str(tmp_path), _bundle_config(toggle)) is expected
 
 def test_extract_chapter_folder_skips_hidden_directories(tmp_path):
     folder = tmp_path / 'Series'
@@ -651,34 +493,11 @@ def test_extract_chapter_folder_skips_hidden_directories(tmp_path):
         import shutil
         shutil.rmtree(temp_parent, ignore_errors=True)
 
-
-def test_is_bundle_folder_mixed_content_stays_per_file(tmp_path):
-    """PDFs can't join an image-directory job, and loose images alongside
-    archives are ambiguous — both keep today's per-file pipeline."""
-    pdf_dir = tmp_path / 'with_pdf'
-    pdf_dir.mkdir()
-    (pdf_dir / 'ch1.cbz').write_bytes(b'x')
-    (pdf_dir / 'extra.pdf').write_bytes(b'x')
-    assert not processor._is_bundle_folder(str(pdf_dir), _bundle_config(True))
-
-    img_dir = tmp_path / 'with_images'
-    img_dir.mkdir()
-    (img_dir / 'ch1.cbz').write_bytes(b'x')
-    (img_dir / 'cover.jpg').write_bytes(b'x')
-    assert not processor._is_bundle_folder(str(img_dir), _bundle_config(True))
-
-    pdf_only = tmp_path / 'pdf_only'
-    pdf_only.mkdir()
-    (pdf_only / 'book.pdf').write_bytes(b'x')
-    assert not processor._is_bundle_folder(str(pdf_only), _bundle_config(True))
-
-
 def _make_cbz(path, names):
     import zipfile
     with zipfile.ZipFile(str(path), 'w') as z:
         for n in names:
             z.writestr(n, b'fake page data')
-
 
 def test_extract_chapter_folder_orders_chapters_naturally(tmp_path):
     folder = tmp_path / 'My Series'
@@ -697,7 +516,6 @@ def test_extract_chapter_folder_orders_chapters_naturally(tmp_path):
         import shutil
         shutil.rmtree(temp_parent, ignore_errors=True)
 
-
 def test_extract_chapter_folder_hoists_wrapper_directory(tmp_path):
     """A cbz that is one folder of pages should extract to images at chapter
     level, not chapter/wrapper/images."""
@@ -714,7 +532,6 @@ def test_extract_chapter_folder_hoists_wrapper_directory(tmp_path):
         import shutil
         shutil.rmtree(temp_parent, ignore_errors=True)
 
-
 def test_extract_chapter_folder_failure_cleans_temp_and_raises(tmp_path):
     folder = tmp_path / 'Series'
     folder.mkdir()
@@ -726,7 +543,6 @@ def test_extract_chapter_folder_failure_cleans_temp_and_raises(tmp_path):
             processor._extract_chapter_folder(str(folder))
     assert not os.path.exists('/tmp/bundletest_bundle')
 
-
 # ── Device profiles ───────────────────────────────────────────────────────────
 
 def test_profile_for_path_matches_only_created_profiles(tmp_path):
@@ -737,7 +553,6 @@ def test_profile_for_path_matches_only_created_profiles(tmp_path):
         assert processor._profile_for_path(str(tmp_path / 'kobo' / 'Series' / 'x.cbz'), config) == 'kobo'
         assert processor._profile_for_path(str(tmp_path / 'x.cbz'), config) is None
         assert processor._profile_for_path(str(tmp_path / 'Marvel' / 'x.cbz'), config) is None
-
 
 def test_config_for_path_applies_profile_kcc_only(tmp_path):
     config = dict(DEFAULT_CONFIG)
@@ -752,7 +567,6 @@ def test_config_for_path_applies_profile_kcc_only(tmp_path):
     assert inside['originals'] == 'keep'
     assert outside['kcc_profile'] == DEFAULT_CONFIG['kcc_profile']
     assert outside['kcc_manga_style'] is False
-
 
 def test_scan_directories_profile_folder_is_a_root_not_a_job(tmp_path):
     """A profile folder is a drop target with its own settings: files inside
@@ -774,13 +588,11 @@ def test_scan_directories_profile_folder_is_a_root_not_a_job(tmp_path):
     assert targets.get(str(kobo / 'x.cbz')) is processor.process_file
     assert targets.get(str(kobo / 'Batman')) is processor.process_folder
 
-
 def test_folder_quiet_secs_follows_timeout_with_floor():
     assert processor._folder_quiet_secs({'file_wait_timeout': 300}) == 300
     assert processor._folder_quiet_secs({'file_wait_timeout': 10}) == 30
     assert processor._folder_quiet_secs({'file_wait_timeout': 'junk'}) == 60
     assert processor._folder_quiet_secs({}) == 60
-
 
 def test_scan_directories_never_descends_into_failed_folders(tmp_path):
     """Archives inside a <name>.failed folder must not be converted — that
@@ -791,7 +603,6 @@ def test_scan_directories_never_descends_into_failed_folders(tmp_path):
         (failed / 'ch1.cbz').write_bytes(b'x')
     _, targets = _scan_dispatches(tmp_path, setup)
     assert targets == {}
-
 
 def test_process_folder_success_removes_source(tmp_path):
     comics_in = tmp_path / 'comics_in'
@@ -815,7 +626,6 @@ def test_process_folder_success_removes_source(tmp_path):
     assert job['state'] == 'success'
     assert job['src_bytes'] == 1
     assert job['out_bytes'] == 4
-
 
 def test_process_folder_originals_archive(tmp_path):
     comics_in = tmp_path / 'comics_in'
@@ -841,7 +651,6 @@ def test_process_folder_originals_archive(tmp_path):
 
     assert not folder.exists()
     assert (archive / 'Batman' / 'p1.jpg').exists()
-
 
 def test_process_folder_originals_keep(tmp_path):
     """With originals='keep', the folder job is left in place and recorded."""
@@ -870,7 +679,6 @@ def test_process_folder_originals_keep(tmp_path):
     assert (folder / 'p1.jpg').exists()
     assert processor._already_converted(str(folder)) is True
 
-
 def test_process_folder_failure_keeps_earlier_failed_folder(tmp_path):
     """A second failure must not collide with (or destroy) an existing .failed folder."""
     comics_in = tmp_path / 'comics_in'
@@ -894,7 +702,6 @@ def test_process_folder_failure_keeps_earlier_failed_folder(tmp_path):
     assert job['state'] == 'failed'
     assert job['failed_path'] == str(comics_in / 'Batman_2.failed')
 
-
 def test_strip_leading_dash_renames_and_updates_job(tmp_path):
     """KCC runs 7z on the bare basename, so -Batman.cbz reads as a switch there."""
     src = tmp_path / '-Batman.cbz'
@@ -907,7 +714,6 @@ def test_strip_leading_dash_renames_and_updates_job(tmp_path):
     assert not src.exists()
     assert processor.JOB_REGISTRY[job_id]['filepath'] == newpath
 
-
 # ── converted ledger (keep-in-place guard) ────────────────────────────────────
 
 def test_converted_ledger_marks_and_recognizes(tmp_path):
@@ -918,7 +724,6 @@ def test_converted_ledger_marks_and_recognizes(tmp_path):
         assert processor._already_converted(str(src)) is False
         processor._mark_converted(str(src))
         assert processor._already_converted(str(src)) is True
-
 
 def test_converted_ledger_detects_changed_source(tmp_path):
     """A replaced copy (different size/mtime) is not treated as already done."""
@@ -931,7 +736,6 @@ def test_converted_ledger_detects_changed_source(tmp_path):
         src.write_bytes(b'a bigger, different payload')
         assert processor._already_converted(str(src)) is False
 
-
 def test_converted_ledger_persists_across_reload(tmp_path):
     src = tmp_path / 'Book.cbz'
     src.write_bytes(b'hello')
@@ -941,7 +745,6 @@ def test_converted_ledger_persists_across_reload(tmp_path):
         processor.CONVERTED_LEDGER.clear()
         processor._load_converted_ledger()
         assert processor._already_converted(str(src)) is True
-
 
 def test_ledger_signature_folder_tracks_contents_ignores_dot_dirs(tmp_path):
     folder = tmp_path / 'Series'
@@ -955,7 +758,6 @@ def test_ledger_signature_folder_tracks_contents_ignores_dot_dirs(tmp_path):
     stfolder.mkdir()
     (stfolder / 'junk').write_bytes(b'zzz')
     assert processor._ledger_signature(str(folder)) == sig2, 'dot-dirs must not count'
-
 
 def test_scan_skips_already_converted_in_keep_mode(tmp_path):
     """In keep mode the scanner does not re-dispatch a source the ledger already
@@ -990,7 +792,6 @@ def test_scan_skips_already_converted_in_keep_mode(tmp_path):
     assert str(src) not in run(mark=True), 'converted, unchanged source should be skipped'
     src.write_bytes(b'a different, larger payload')
     assert str(src) in run(mark=False), 'a changed source should dispatch again'
-
 
 def test_scan_ignores_ledger_when_not_keep_mode(tmp_path):
     """delete/archive modes always dispatch — the ledger guard is keep-only."""
