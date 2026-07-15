@@ -1,3 +1,12 @@
+## v4.2.1: Keep-in-Place Fixes
+
+Two bugs surfaced by the follow-up on issue #13, both hitting libraries where `Comics_in` and `Comics_out` share a folder with a library manager.
+
+### Fixed
+
+- **A timestamp touch no longer re-converts a kept source.** Library managers touch files when they scan or rewrite metadata, and Bindery counted every touch as a new version, converting the same comic over and over and adding a `_2`, `_3`... copy each round. A kept source now re-converts only when its content actually changes, and when it does the new book replaces the earlier one instead of stacking another copy beside it.
+- **Folders without comics are left alone.** A top-level folder in `Comics_in` holding nothing comic-typed (an epub-only book folder in a shared library, for instance) was treated as a folder conversion job, failed inside KCC, and got the whole folder renamed to `<name>.failed`. Folders with nothing to convert are no longer jobs and are never renamed.
+
 ## v4.2.0: Light Mode, Dashboards & ComicInfo
 
 Three additions aimed at making Bindery nicer to live with and easier to keep an eye on.
