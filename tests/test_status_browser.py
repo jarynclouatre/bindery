@@ -369,3 +369,15 @@ def test_api_files_download_comics_folder(client, tmp_path):
         resp = client.get('/api/files/download?folder=comics&name=mycomic.epub')
     assert resp.status_code == 200
     assert resp.data == b'comic data'
+
+
+def test_bump_stats_accumulates_and_persists(tmp_path):
+    stats_file = tmp_path / 'stats.json'
+    with patch.object(processor, 'STATS_FILE', str(stats_file)):
+        processor.STATS.update({'converted': 0, 'bytes_saved': 0})
+        processor._bump_stats(converted=1, saved=500)
+        processor._bump_stats(converted=1, saved=-10)   # a negative saving is clamped to 0
+        assert processor.STATS == {'converted': 2, 'bytes_saved': 500}
+        processor.STATS.update({'converted': 0, 'bytes_saved': 0})
+        processor._load_stats()
+        assert processor.STATS == {'converted': 2, 'bytes_saved': 500}

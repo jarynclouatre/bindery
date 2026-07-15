@@ -32,6 +32,16 @@ def test_health(client):
     assert json.loads(resp.data) == {'status': 'ok'}
 
 
+def test_api_stats_returns_fields(client):
+    resp = client.get('/api/stats')
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    for key in ('converted', 'bytes_saved', 'bytes_saved_human',
+                'queued', 'processing', 'failed', 'last_conversion'):
+        assert key in data
+    assert isinstance(data['converted'], int)
+
+
 def test_index_get_returns_200(client):
     resp = client.get('/')
     assert resp.status_code == 200

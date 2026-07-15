@@ -207,6 +207,44 @@ Full setup instructions including systemd service and provider-specific remote c
 
 ---
 
+## Dashboard integration
+
+Bindery exposes a small JSON endpoint at `/api/stats` for home-lab dashboards:
+
+```json
+{
+  "converted": 1240,
+  "bytes_saved": 3221225472,
+  "bytes_saved_human": "3.0 GB",
+  "queued": 0,
+  "processing": 1,
+  "failed": 0,
+  "last_conversion": "2026-07-15T00:31:44Z"
+}
+```
+
+`converted` and `bytes_saved` are lifetime totals kept across restarts; the rest reflect the live queue.
+
+**[Homepage](https://gethomepage.dev/)** — add a custom API widget:
+
+```yaml
+- Bindery:
+    icon: mdi-book-cog
+    href: http://bindery-host:5000
+    widget:
+      type: customapi
+      url: http://bindery-host:5000/api/stats
+      mappings:
+        - field: converted
+          label: Converted
+        - field: bytes_saved_human
+          label: Saved
+        - field: processing
+          label: Working
+```
+
+**[Uptime Kuma](https://github.com/louislam/uptime-kuma)** — point an HTTP monitor at `/health`, which returns `{"status": "ok"}`.
+
 ## Updating
 
 ```bash

@@ -12,8 +12,8 @@ from flask import Flask, jsonify, request, render_template, send_file
 from config import DEFAULT_CONFIG, KCC_KEYS, load_config, save_config, ConfigDict
 from processor import (
     LOG_BUFFER, log_lock, log, watch_loop, inotify_watch_loop,
-    _load_log_history, _load_job_registry, _load_converted_ledger, _collision_free,
-    JOB_REGISTRY, job_registry_lock, retry_file,
+    _load_log_history, _load_job_registry, _load_converted_ledger, _load_stats, _collision_free,
+    JOB_REGISTRY, job_registry_lock, retry_file, STATS, stats_lock,
     BOOK_EXTS, COMIC_EXTS,
     BOOKS_IN, BOOKS_OUT, COMICS_IN, COMICS_OUT,
 )
@@ -146,6 +146,38 @@ def create_app(start_threads: bool = True) -> Flask:
             jobs = list(JOB_REGISTRY.values())
         jobs.sort(key=lambda j: j.get('created') or '', reverse=True)
         return jsonify({'jobs': jobs})
+
+    @app.route('/api/stats')
+    def api_stats():
+        """Lifetime counters + live queue depth, for dashboards (Homepage, etc.)."""
+        with job_registry_lock:
+            jobs = list(JOB_REGISTRY.values())
+        counts = {'queued': 0, 'processing': 0, 'failed': 0}
+        last = None
+        for j in jobs:
+            state = j.get('state')
+            if state in counts:
+                counts[state] += 1
+            if state == 'success' and j.get('finished') and (last is None or j['finished'] > last):
+                last = j['finished']
+        with stats_lock:
+            saved = STATS['bytes_saved']
+            converted = STATS['converted']
+        size, unit = float(saved), 'B'
+        for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
+            if size < 1024 or unit == 'TB':
+                break
+            size /= 1024
+        human = f'{saved} B' if unit == 'B' else f'{size:.1f} {unit}'
+        return jsonify({
+            'converted': converted,
+            'bytes_saved': saved,
+            'bytes_saved_human': human,
+            'queued': counts['queued'],
+            'processing': counts['processing'],
+            'failed': counts['failed'],
+            'last_conversion': last,
+        })
 
     @app.route('/api/profiles', methods=['POST'])
     def api_profiles():
@@ -309,6 +341,7 @@ def create_app(start_threads: bool = True) -> Flask:
         _load_log_history()
         _load_job_registry()
         _load_converted_ledger()
+        _load_stats()
         _mode = load_config().get('watcher_mode', 'poll')
         if _mode == 'inotify':
             log(">>> Bindery started. Watching /Books_in, /Comics_in, and /Comics_raw via inotify.")

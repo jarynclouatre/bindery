@@ -60,6 +60,11 @@ CONVERTED_FILE = '/app/config/converted.json'
 CONVERTED_LEDGER: dict[str, str] = {}
 converted_lock = threading.Lock()
 
+# Lifetime counters for the /api/stats dashboard endpoint.
+STATS_FILE = '/app/config/stats.json'
+STATS: dict[str, int] = {'converted': 0, 'bytes_saved': 0}
+stats_lock = threading.Lock()
+
 
 def log(msg: str) -> None:
     line = msg.rstrip()
@@ -201,6 +206,40 @@ def _mark_converted(path: str) -> None:
     with converted_lock:
         CONVERTED_LEDGER[path] = sig
         _save_converted_ledger()
+
+
+def _load_stats() -> None:
+    """Load the lifetime conversion counters from disk on startup."""
+    try:
+        with open(STATS_FILE) as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            with stats_lock:
+                for k in STATS:
+                    if isinstance(data.get(k), int):
+                        STATS[k] = data[k]
+    except (OSError, json.JSONDecodeError):
+        pass
+
+
+def _save_stats() -> None:
+    """Atomically write the counters. Caller must hold stats_lock."""
+    try:
+        os.makedirs(os.path.dirname(STATS_FILE), exist_ok=True)
+        tmp = STATS_FILE + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(STATS, f)
+        os.replace(tmp, STATS_FILE)
+    except OSError:
+        pass
+
+
+def _bump_stats(converted: int = 0, saved: int = 0) -> None:
+    """Add to the lifetime counters after a successful conversion."""
+    with stats_lock:
+        STATS['converted']   += converted
+        STATS['bytes_saved'] += max(0, saved)
+        _save_stats()
 
 
 def _now() -> str:
@@ -619,8 +658,9 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             filepath = _strip_leading_dash(filepath, job_id)
             short    = os.path.basename(filepath)[:40]
 
+        src_bytes = _tree_bytes(filepath)
         _update_job(job_id, state='processing', started=_now(),
-                    src_bytes=_tree_bytes(filepath),
+                    src_bytes=src_bytes,
                     profile=_profile_for_path(filepath, config))
 
         rel_dir = os.path.relpath(os.path.dirname(filepath), in_base)
@@ -665,6 +705,7 @@ def process_file(filepath: str, c_type: str, job_id: str | None = None) -> None:
             suffix = 's' if count > 1 else ''
             log(f">>> SUCCESS ({count} file{suffix}): {short}")
             _update_job(job_id, state='success', finished=_now(), out_bytes=out_bytes)
+            _bump_stats(converted=1, saved=src_bytes - out_bytes)
             _notify('success', os.path.basename(filepath))
         else:
             log(f">>> FAILED (no output file found): {short}")
@@ -714,8 +755,9 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
                 _save_job_registry()
             return
 
+        src_bytes = _tree_bytes(folderpath)
         _update_job(job_id, state='processing', started=_now(),
-                    src_bytes=_tree_bytes(folderpath),
+                    src_bytes=src_bytes,
                     profile=_profile_for_path(folderpath, config))
 
         kcc_input = folderpath
@@ -759,6 +801,7 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
             suffix = 's' if count > 1 else ''
             log(f">>> SUCCESS ({count} file{suffix}): {short}/")
             _update_job(job_id, state='success', finished=_now(), out_bytes=out_bytes)
+            _bump_stats(converted=1, saved=src_bytes - out_bytes)
             _notify('success', short + '/')
         else:
             log(f">>> FAILED (no output file found): {short}/")
