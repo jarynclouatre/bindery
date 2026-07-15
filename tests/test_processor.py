@@ -515,6 +515,9 @@ def _bundle_config(on: bool):
     (['ch1.cbz', 'extra.pdf'], [], True, False),          # pdf alongside archives -> per-file
     (['ch1.cbz', 'cover.jpg'], [], True, False),          # loose image alongside -> per-file
     (['book.pdf'], [], True, False),                      # pdf-only -> per-file
+    (['Some Novel.epub'], [], False, False),              # epub-only book folder is not a job
+    (['Some Novel.epub'], [], True, False),
+    (['series.nfo', 'cover.txt'], [], True, False),       # nothing comic-typed -> never a job
 ])
 def test_is_bundle_folder_decision(tmp_path, files, dirs, toggle, expected):
     for name in files:

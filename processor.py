@@ -884,10 +884,13 @@ def process_folder(folderpath: str, job_id: str | None = None) -> None:
 def _is_bundle_folder(dirpath: str, config: ConfigDict | None = None) -> bool:
     """Decide whether a top-level Comics_in folder converts as one bundled volume.
 
-    Folders holding only images always do — KCC takes the directory as-is.
+    Folders holding images always do — KCC takes the directory as-is.
     Folders of chapter archives bundle only when Bundle Chapter Folders is
     enabled, and only if everything comic-typed inside is an extractable
     archive: PDFs and loose images alongside archives keep the per-file path.
+    Folders with nothing comic-typed at all (a library's epub-only book
+    folders, stray sidecar files) are never jobs — KCC would fail on them and
+    the folder would get renamed .failed.
     """
     saw_archive = saw_pdf = saw_image = saw_file = False
     for _root, dirs, files in os.walk(dirpath):
@@ -906,7 +909,7 @@ def _is_bundle_folder(dirpath: str, config: ConfigDict | None = None) -> bool:
         # that hasn't landed) — not a job; the next scan rechecks.
         return False
     if not saw_archive and not saw_pdf:
-        return True
+        return saw_image
     if saw_pdf or saw_image:
         return False
     if config is None:
