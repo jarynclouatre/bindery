@@ -1,6 +1,15 @@
-# ![Bindery](assets/logo.png)
+<p align="center">
+  <img src="assets/logo.png" alt="Bindery" width="480">
+</p>
 
-[![Tests](https://github.com/jarynclouatre/bindery/actions/workflows/test.yml/badge.svg)](https://github.com/jarynclouatre/bindery/actions/workflows/test.yml)
+<p align="center"><em>Drop e-books and comics into a folder — they come out ready for your e-reader.</em></p>
+
+<p align="center">
+  <a href="https://github.com/jarynclouatre/bindery/actions/workflows/test.yml"><img src="https://github.com/jarynclouatre/bindery/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+  <a href="https://hub.docker.com/r/dinkeyes/bindery"><img src="https://img.shields.io/badge/Docker-dinkeyes%2Fbindery-2496ED?logo=docker&logoColor=white" alt="Docker"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+">
+</p>
 
 A self-hosted, Dockerized converter that automatically processes e-books and comics dropped into watched folders — no manual steps required.
 
@@ -8,11 +17,13 @@ A self-hosted, Dockerized converter that automatically processes e-books and com
 
 **For all devices:** Converts comic archives and PDFs (`.cbz`, `.cbr`, `.zip`, `.rar`, `.pdf`) into device-optimised files using [Kindle Comic Converter (KCC)](https://github.com/ciromattia/kcc), with full control over profile, cropping, splitting, gamma, and more.
 
-All settings are configurable at runtime via a WebUI on port 5000 — no container rebuild needed. Supports `PUID`/`PGID` permission mapping for NAS and multi-user environments.
+All settings are configurable at runtime via a WebUI on port 5000 — no container rebuild needed. Supports `PUID`/`PGID` permission mapping for NAS and multi-user environments, and the image is multi-arch — it runs on x86 and ARM64, so a Raspberry Pi 4/5 or an ARM NAS works too.
 
 **Supported devices:** Kindle, Kobo, reMarkable, and any device KCC has a profile for.
 
-![Bindery WebUI](assets/webui.png)
+<p align="center">
+  <img src="assets/webui.png" alt="Bindery WebUI" width="880">
+</p>
 
 ---
 
