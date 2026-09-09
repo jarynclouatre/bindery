@@ -1,3 +1,15 @@
+## v4.3.2: Source-Built kepubify
+
+The Docker image now builds kepubify from its pinned source instead of downloading a binary compiled with an older Go toolchain.
+
+### Changed
+
+- **kepubify is built from source**: the image compiles kepubify 4.0.4 from its pinned upstream commit with Go 1.26.5 and updated direct dependencies. Book conversion stays on kepubify 4.0.4; this changes how the binary is built, not its settings or output options.
+
+### Upgrading
+
+Pull the latest image and restart. Settings and conversion behaviour are unchanged.
+
 ## v4.3.1: Settings Save Fix
 
 A fix for the Books settings card added in v4.3.0, which could drop the rest of your settings when it refused an output extension.
